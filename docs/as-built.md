@@ -30,7 +30,7 @@ prodev/
 | `index.js` | 카드·위키·inbox 머리말 → 색인 | 과제 폴더 → `index.md` · `index.json`(`errors`) · `next E\|R\|D\|N` | intake · research · schedule · pre-reply |
 | `find.js` | 층 다섯을 차례로 뒤진다 | 낱말들 → 층 · 경로/번호 · status, `find.log` | 비서 (find 스킬) |
 | `peek.js` | 파일 겉을 본다 | 파일 → 행 수 · 열 이름 · 앞 5행 · 형식 | intake |
-| `intake-copy.js` | 첨부를 inbox 로 들인다 | slug + 파일들 → inbox 폴더 · `.v2` · SHA-256 · `files.md` · 원본 0444 | intake |
+| `intake-copy.js` | 첨부를 inbox 로 들인다 | slug + 파일들 → inbox 폴더 · `.v2` · SHA-256 · `files.md` · 원본 0444. 서버 저장명이면 uuid 앞머리를 벗겨 원래 이름으로 | intake |
 | `plot.py` | csv 한 열을 그림으로 | csv + 열 → `<과제>/tmp/*.png` (없으면 한 줄 내고 exit 0) | intake |
 | `setup.js` | 설치 · 방 · cron · 보관 | (아래 5절) | 사람 |
 | `retro-cost.js` | 세션 기록에서 값·승인 수 | 기록 → 숫자, `--record` | meta |
@@ -102,7 +102,7 @@ DB 를 못 열면 `/자료` 방만 fail-closed. 방 갈래를 DB 로도 `rooms.j
 
 ## 7. 시험 묶음
 
-`npm test` — 서버가 필요 없다. **81건 · 0 실패.**
+`npm test` — 서버가 필요 없다. **84건 · 0 실패.**
 
 | 파일 | 건수 | 무엇을 |
 |---|---|---|
@@ -111,7 +111,7 @@ DB 를 못 열면 `/자료` 방만 fail-closed. 방 갈래를 DB 로도 `rooms.j
 | `find.test.js` | 16 | 층 다섯 · 조사 떼기 · void 따라가기 |
 | `hooks.test.js` | 28 | session-start 5 · pre-compact 5 + 알림 3 · pre-reply 15 |
 | `index.test.js` | 8 | 머리말 부분집합 · `next` · errors |
-| `intake.test.js` | 6 | 뿌리 밖 거절 · `.v2` · 0444 |
+| `intake.test.js` | 9 | 뿌리 밖 거절 · `.v2` · 0444 · 서버 저장명의 uuid 벗기기 셋 |
 | `peek.test.js` | 5 | csv · xlsx · pdf · jpg · 모르는 형식 |
 | `plot.test.js` | 2 | 그림 하나 · 안 죽는다 |
 | `smoke.test.js` | 2 | 부품·fixture 가 제자리 |
@@ -135,6 +135,8 @@ cd <임시>/사본 && MINIDISCORD_DIR=<실제 minidiscord> npm run test:server
 | 산출물을 방에 첨부한다 | 경로만 주면 사람이 열러 가지 않는다 | ADR-020 |
 | `rooms.json` 은 방 이름표. `last_seen_id` 를 믿지 않는다 | 재생 다섯에서 그 값이 끝까지 0 이었는데 놓친 글은 서버 재배달이 다 가져왔다. ADR-006 을 뒤집었다 | ADR-021 |
 | 확정 어휘를 봉투 벗긴 뒤에 본다 | 사람 글은 언제나 `@TO(…)` 로 시작한다. 안 벗기면 확정이 영영 안 된다 | ADR-008 보충 |
+| 봇 `settings.json` 의 env 에 `MINIDISCORD_URL` | 없으면 훅이 기본 3000 을 보고 알림을 조용히 건너뛴다 | — |
+| intake 가 서버 저장명의 uuid 를 벗긴다 | 안 벗기면 같은 파일이 이름만 다른 채 둘이 된다 (`.v2` 가 안 걸린다) | — |
 
 ## 9. 아직 그대로인 것 (알고 두는 것)
 
