@@ -7,7 +7,7 @@
 //   node scripts/setup.js archive <방>             방 하나를 보관한다
 //
 // crew 의 setup.js 에서 왔다. 다른 점 셋:
-//   ① 봇이 다섯이 아니라 **하나**다 (prodev-<과제>-비서)
+//   ① 봇이 다섯이 아니라 **하나**다 (prodev-<과제>-bot)
 //   ② 방을 하나가 아니라 **둘**로 연다 — 본방과 <과제>/files (ARCHITECTURE 2절 · ADR-022)
 //   ③ 훅이 하나가 아니라 셋이다 (session-start · pre-compact · pre-reply)
 //
@@ -106,7 +106,10 @@ function projectDir(opt) {
   return path.join(path.resolve(뿌리), p);
 }
 const 과제이름 = dir => path.basename(dir);
-const 봇이름 = 과제 => `prodev-${과제}-비서`;
+const 봇이름 = 과제 => `prodev-${과제}-bot`;
+// 훅과 cron 이 방에 알림 글을 올릴 때 쓰는 **사람 계정** (ADR-018). 봇 글은 게이트웨이만 보낼 수 있다.
+// 이름을 영어로 둔다 — 사람이 코드와 채팅에서 마주치는 이름이기 때문이다 (ADR-024).
+const 알림계정 = 'prodev-notify';
 const pat = p => '//' + p.replace(/\\/g, '/').replace(/^\//, '');    // Claude Code 권한 패턴
 // 윗자리가 아랫자리를 품는가 (같은 자리도 품는 것으로 본다). deny 가 과제 폴더를 덮는지 볼 때 쓴다.
 const 덮는다 = (윗자리, 아랫자리) => {
@@ -121,7 +124,16 @@ function readEnv(file) {
   try { for (const l of fs.readFileSync(file, 'utf8').split(/\r?\n/)) { const m = l.match(/^([A-Z_]+)=(.*)$/); if (m) out[m[1]] = m[2].trim(); } } catch {}
   return out;
 }
-const writeEnv = (f, kv) => fs.writeFileSync(f, Object.entries(kv).map(([k, v]) => `${k}=${v}`).join('\n') + '\n');
+// .env 는 사람도 연다. 무엇인지 모를 값에는 한 줄 풀이를 붙인다 (ADR-024).
+const 토큰풀이 = `# PRODEV_NOTIFY_TOKEN: ${알림계정} 계정의 세션 쿠키. 훅과 cron 이 본방에 알림 글을 올릴 때 쓴다 (봇 글은 게이트웨이만 보낼 수 있어서 사람 계정이 필요하다)`;
+const writeEnv = (f, kv) => {
+  const 줄 = [];
+  for (const [k, v] of Object.entries(kv)) {
+    if (k === 'PRODEV_NOTIFY_TOKEN') 줄.push(토큰풀이);
+    줄.push(`${k}=${v}`);
+  }
+  fs.writeFileSync(f, 줄.join('\n') + '\n');
+};
 function ensureDir(p, note) {
   if (!fs.existsSync(p)) { fs.mkdirSync(p, { recursive: true }); log(`만듦  ${p}${note ? '  (' + note + ')' : ''}`); }
   else log(`있음  ${p}`);
@@ -154,6 +166,18 @@ async function api(method, p, body) {
 }
 async function serverUp() { try { const j = await api('GET', '/api/health'); return !!(j && j.ok); } catch { return false; } }
 const login = () => api('POST', '/api/auth/login', { username: process.env.MINIDISCORD_USER || 'prodev-setup' });
+
+// 알림 계정의 세션 쿠키를 받아 온다 (ADR-024). 이름 하나로 로그인하면 계정이 없을 때 생긴다.
+// 공용 api() 를 쓰지 않는 까닭: 그것은 모듈 쿠키를 덮어, 뒤따르는 부름이 알림 계정으로 나간다.
+async function 알림토큰받기() {
+  const r = await fetch(URL_ + '/api/auth/login', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ username: 알림계정 }),
+  });
+  if (!r.ok) throw new Error(`${r.status} ${(await r.text()).slice(0, 120)}`);
+  const m = /md_session=([^;]+)/.exec(r.headers.get('set-cookie') || '');
+  return m ? m[1] : null;
+}
 
 // ── 설치 ──────────────────────────────────────────────────
 
@@ -191,9 +215,24 @@ async function install(opt) {
     const 있는것 = new Map((await api('GET', '/api/bots')).map(b => [b.name, b]));
     if (있는것.has(봇)) log(`주의  ${봇} 은 서버에 있는데 .env 에 토큰이 없다 — 웹에서 봇을 지우고 다시 돌려라`);
     else {
-      const j = await api('POST', '/api/bots', { name: 봇, description: `prodev ${과제} 비서`, role: 'orchestrator' });
+      const j = await api('POST', '/api/bots', { name: 봇, description: `prodev ${과제} bot`, role: 'orchestrator' });
       writeEnv(path.join(봇폴더, '.env'), { ...kv, MINIDISCORD_TOKEN: j.token });
       log(`등록  ${봇} (id ${j.id}) → bots/${봇}/.env`);
+    }
+  }
+
+  // 알림 계정의 세션 쿠키 (ADR-024). 사람이 브라우저에서 쿠키를 복사하던 걸음을 여기서 없앤다.
+  // 이미 값이 있으면 덮지 않는다 — 사람이 손으로 넣어 둔 것을 지우면 안 된다.
+  const env길 = path.join(봇폴더, '.env');
+  if (!up) log(`알림 토큰  건너뜀 (서버 없음) — 서버를 켜고 다시 돌리면 받는다`);
+  else if (readEnv(env길).PRODEV_NOTIFY_TOKEN) log(`있음  ${알림계정} 세션 쿠키 (덮지 않는다)`);
+  else {
+    try {
+      const t = await 알림토큰받기();
+      if (t) { writeEnv(env길, { ...readEnv(env길), PRODEV_NOTIFY_TOKEN: t }); log(`받음  ${알림계정} 세션 쿠키 → bots/${봇}/.env`); }
+      else log(`!! ${알림계정} 로그인 응답에 md_session 이 없다 — 손으로 .env 에 넣어라`);
+    } catch (e) {
+      log(`!! ${알림계정} 토큰을 못 받았다 (${e.message}) — 손으로 .env 에 넣어라`);
     }
   }
 
@@ -361,4 +400,4 @@ if (require.main === module) {
   })();
 }
 
-module.exports = { install, rooms, cron, archive, 봇이름, 갈래 };
+module.exports = { install, rooms, cron, archive, 봇이름, 알림계정, 갈래 };

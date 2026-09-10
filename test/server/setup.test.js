@@ -44,8 +44,8 @@ function 통째로베낀다(부터, 까지) {
 }
 const 과제 = '시험과제';
 // 갈래 이름은 한 자리(places.js)에서 온다. 여기서 다시 적으면 언젠가 갈린다.
-const { 갈래 } = require('../../scripts/setup.js');
-const 봇 = `prodev-${과제}-비서`;
+const { 갈래, 알림계정 } = require('../../scripts/setup.js');
+const 봇 = `prodev-${과제}-bot`;
 
 const 상태 = { child: null, port: 0, dataDir: null, project: null, botDir: null, url: '', repo: null };
 // 시험을 시작할 때의 실제 bots/ 목록. 맨 끝 시험이 이것과 견준다.
@@ -90,7 +90,7 @@ let 알림토큰 = '';
 async function 알림계정만들기() {
   const r = await fetch(상태.url + '/api/auth/login', {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ username: 'prodev-알림' }),
+    body: JSON.stringify({ username: 알림계정 }),
   });
   const sc = r.headers.get('set-cookie') || '';
   알림토큰 = (/md_session=([^;]+)/.exec(sc) || [, ''])[1];
@@ -287,7 +287,7 @@ test('setup settings — 파일 뿌리가 과제 폴더의 부모일 때도 deny
   const 과제폴더 = path.join(뿌리, 'projects', 과제이름);
   fs.mkdirSync(과제폴더, { recursive: true });
   const 사본 = 저장소사본();
-  const 봇폴더 = path.join(사본, 'bots', `prodev-${과제이름}-비서`);   // 사본 아래다
+  const 봇폴더 = path.join(사본, 'bots', `prodev-${과제이름}-bot`);   // 사본 아래다
 
   try {
     돌린다([], {
@@ -366,6 +366,52 @@ test('setup cron — 낸 줄을 그대로 서버에 보내면 200 이고 글이 
   console.log(`      cron 글 message_id=${마지막.id} · author=${마지막.author_name}`);
 });
 
+test('setup — .env 에 알림 계정 세션 쿠키가 들어가고 그 값이 실제로 먹힌다 (ADR-024)', async () => {
+  // 사람이 브라우저에서 쿠키를 복사하던 걸음을 없앤 자리다. "파일에 뭔가 있다" 로는 모자라고,
+  // 그 값으로 **진짜 글이 올라가는지**까지 봐야 걸음이 정말 없어진 것이다.
+  const env = fs.readFileSync(path.join(상태.botDir, '.env'), 'utf8');
+  assert.match(env, new RegExp(`^# PRODEV_NOTIFY_TOKEN: ${알림계정} 계정의 세션 쿠키\\.`, 'm'),
+    `사람이 읽을 풀이 한 줄이 없다:\n${env}`);
+
+  const 토큰 = (/^PRODEV_NOTIFY_TOKEN=(.+)$/m.exec(env) || [, ''])[1].trim();
+  // 진짜 md_session 은 randomBytes(32).toString('hex') 다 (server/src/auth.ts).
+  assert.match(토큰, /^[0-9a-f]{64}$/, `세션 쿠키 꼴이 아니다: ${토큰.slice(0, 24)}`);
+
+  const 본방 = (await api('GET', '/api/rooms')).body.active.find(r => r.name === `prodev-${과제}`);
+  assert.ok(본방, '본방이 없다');
+  const 전 = (await api('GET', `/api/rooms/${본방.id}/messages?after=0`)).body.messages.length;
+
+  const 폼 = new FormData();
+  폼.append('body', `@TO(${봇}) ADR-024 알림 토큰 시험`);
+  const r = await fetch(`${상태.url}/api/rooms/${본방.id}/messages`, {
+    method: 'POST', headers: { cookie: `md_session=${토큰}` }, body: 폼,
+  });
+  assert.strictEqual(r.status, 200, `setup 이 받은 토큰으로 글이 안 올라간다: ${r.status}`);
+
+  const 글들 = (await api('GET', `/api/rooms/${본방.id}/messages?after=0`)).body.messages;
+  assert.strictEqual(글들.length, 전 + 1, '글이 안 남았다');
+  const 마지막 = 글들[글들.length - 1];
+  assert.strictEqual(마지막.author_name, 알림계정, `쓴 이가 ${알림계정} 이 아니다: ${마지막.author_name}`);
+  assert.strictEqual(마지막.author_type, 'user', '알림 계정은 사람 계정이다');
+});
+
+test('setup — .env 에 알림 토큰이 이미 있으면 덮지 않는다 (ADR-024)', () => {
+  const 뿌리 = fs.mkdtempSync(path.join(os.tmpdir(), 'prodev-notify-'));
+  const 사본 = 저장소사본();
+  const 이름 = '덮지않기';
+  const 봇폴더 = path.join(사본, 'bots', `prodev-${이름}-bot`);
+  fs.mkdirSync(봇폴더, { recursive: true });
+  fs.writeFileSync(path.join(봇폴더, '.env'), 'PRODEV_NOTIFY_TOKEN=사람이넣어둔값\n');
+
+  const out = 돌린다(['--project', 이름], { __repo: 사본, MINIDISCORD_BOT_FILES_DIR: 뿌리, PRODEV_PROJECT: '' });
+
+  const env = fs.readFileSync(path.join(봇폴더, '.env'), 'utf8');
+  assert.match(env, /^PRODEV_NOTIFY_TOKEN=사람이넣어둔값$/m, `사람이 넣어 둔 값이 지워졌다:\n${env}`);
+  assert.match(out, /덮지 않는다/, '덮지 않았다고 말하지 않았다');
+  fs.rmSync(사본, { recursive: true, force: true });
+  fs.rmSync(뿌리, { recursive: true, force: true });
+});
+
 test('setup archive — 방 하나를 보관하면 active 에서 빠지고 archived 로 간다', async () => {
   const 방 = `prodev-${과제}/files`;
   const out = 돌린다(['archive', 방], {});
@@ -410,7 +456,7 @@ test('setup --project 이름만 — 파일 뿌리 아래에 과제 폴더 · git
 
   assert.ok(fs.existsSync(폴더), `① 과제 폴더가 안 생겼다: ${폴더}\n${out}`);
   assert.ok(fs.existsSync(path.join(폴더, '.git')), '② git 이 안 생겼다');
-  assert.ok(fs.existsSync(path.join(사본, 'bots', `prodev-${이름}-비서`)), '③ 봇 폴더가 안 생겼다');
+  assert.ok(fs.existsSync(path.join(사본, 'bots', `prodev-${이름}-bot`)), '③ 봇 폴더가 안 생겼다');
   for (const d of ['cards', 'wiki', 'inbox', 'journal', 'threads', 'tmp']) {
     assert.ok(fs.existsSync(path.join(폴더, d)), `하위 폴더가 없다: ${d}`);
   }

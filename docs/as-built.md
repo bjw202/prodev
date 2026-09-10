@@ -69,7 +69,7 @@ DB 를 못 열거나 방을 몰라도 표식이 있으면 막는다 (카드 공�
 
 | 명령 | 만드는 것 |
 |---|---|
-| `setup.js [--project <이름\|폴더>]` | **과제 폴더 자체**(없으면 만든다) · 하위 열 · `git init` · 봇 폴더 · `.env`(봇 토큰) · `.claude/settings.json` · `.mcp.json`(토큰 있을 때만). 이름만 주면 `$MINIDISCORD_BOT_FILES_DIR/<이름>` (ADR-023) |
+| `setup.js [--project <이름\|폴더>]` | **과제 폴더 자체**(없으면 만든다) · 하위 열 · `git init` · 봇 폴더 · `.env`(봇 토큰 + **알림 계정 세션 쿠키**, ADR-024) · `.claude/settings.json` · `.mcp.json`(토큰 있을 때만). 이름만 주면 `$MINIDISCORD_BOT_FILES_DIR/<이름>` (ADR-023) |
 | `setup.js rooms <과제>` | 방 둘(본방 · `<과제>/files`) + 봇 참여 + `rooms.json` |
 | `setup.js cron` | crontab 두 줄을 stdout 으로 (쿠키 + `--form-string`, ADR-018) |
 | `setup.js archive <방>` | 방 하나 보관 |
@@ -88,7 +88,7 @@ DB 를 못 열거나 방을 몰라도 표식이 있으면 막는다 (카드 공�
 | `PRODEV_BOT` | places.js | 봇 폴더를 `<repo>/bots/<이름>` 으로 |
 | `PRODEV_BOT_DIR` | places.js | 있으면 이것이 이긴다 |
 | `PRODEV_HANDOFF` | places.js | 없으면 `<봇폴더>/handoff-compact.md` |
-| `PRODEV_NOTIFY_TOKEN` | pre-compact.js · cron 두 줄 | 알림 계정의 `md_session` 값. 없으면 봇 폴더 `.env` → 그것도 없으면 알림 건너뜀 (ADR-018) |
+| `PRODEV_NOTIFY_TOKEN` | pre-compact.js · session-start.js · cron 두 줄 | `prodev-notify` 계정의 `md_session` 값. **`setup.js` 가 받아 봇 폴더 `.env` 에 쓴다** (ADR-024). 없으면 알림 건너뜀 (ADR-018) |
 | `PRODEV_NOTIFY_ROOM` | pre-compact.js | 봉투의 `chat_id` 가 먼저 → env → `rooms.json` 의 본방. 셋 다 없으면 알림 건너뜀 |
 | `PRODEV_INTAKE_ROOTS` | intake-copy.js | 없으면 `MINIDISCORD_BOT_FILES_DIR`, 그것도 없으면 막지 않는다 |
 | `PRODEV_AUTOCOMPACT` | setup.js | 650000 |
@@ -118,7 +118,7 @@ DB 를 못 열거나 방을 몰라도 표식이 있으면 막는다 (카드 공�
 | `plot.test.js` | 2 | 그림 하나 · 안 죽는다 |
 | `smoke.test.js` | 2 | 부품·fixture 가 제자리 |
 
-`npm run test:server` — 진짜 minidiscord 를 임시로 띄운다. **23건 · 0 실패** (setup 15 · replay 8).
+`npm run test:server` — 진짜 minidiscord 를 임시로 띄운다. **25건 · 0 실패** (setup 17 · replay 8).
 **저장소 사본에서 돌린다.** `MINIDISCORD_DIR` 하나만 주면 된다:
 ```
 git archive HEAD | tar -x -C <임시>/사본 && cp -r node_modules <임시>/사본/
@@ -150,3 +150,4 @@ cd <임시>/사본 && MINIDISCORD_DIR=<실제 minidiscord> npm run test:server
 - `bots/` 는 git 제외다. 봇 토큰은 서버 `bots` 표에도 평문으로 있어 잃어도 거기서 꺼낼 수 있다.
 - `setup.js` 의 갈래 이름은 `common/hooks/places.js` 의 `갈래들` 한 자리에서 온다 (ADR-022). 훅의 확정 조건 ② 와 같은 값이어야 하기 때문이다.
 - `git init` 이 실패해도 설치는 이어 간다 (ADR-023). 못 했다는 한 줄만 남긴다 — 커밋은 나중 일이고, 여기서 멈추면 봇을 못 띄운다.
+- 알림 토큰도 못 받으면 설치는 이어 간다 (ADR-024). 못 받았다는 한 줄만 남기고, 사람이 손으로 `.env` 에 넣을 수 있다.
