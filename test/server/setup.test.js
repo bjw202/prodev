@@ -377,6 +377,80 @@ test('setup archive — 방 하나를 보관하면 active 에서 빠지고 archi
   assert.strictEqual(r.body.active.length, 1, '본방만 남아야 한다');
 });
 
+// ── ADR-023: setup 이 과제 폴더를 스스로 만든다 ────────────
+//
+// 사람이 "과제 하나 = 파일 뿌리 아래 폴더 하나, 만드는 것은 setup" 으로 정했다.
+// 그래서 --project 에 **이름만** 줘도 된다. 자리를 외우는 것은 사람이 아니라 setup 이다.
+
+// 과제 폴더 안을 통째로 찍는다 (.git 안은 빼고 — 우리가 재는 것은 "사람의 것을 건드렸나" 다).
+function 나무(뿌리) {
+  const 목록 = [];
+  (function 돈다(d) {
+    for (const e of fs.readdirSync(d, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
+      if (e.name === '.git') continue;
+      const 길 = path.join(d, e.name);
+      if (e.isDirectory()) { 목록.push(path.relative(뿌리, 길) + '/'); 돈다(길); }
+      else {
+        const h = require('crypto').createHash('sha256').update(fs.readFileSync(길)).digest('hex').slice(0, 12);
+        목록.push(path.relative(뿌리, 길) + ' ' + h);
+      }
+    }
+  })(뿌리);
+  return 목록;
+}
+
+test('setup --project 이름만 — 파일 뿌리 아래에 과제 폴더 · git · 봇 폴더 셋이 생긴다 (ADR-023)', () => {
+  const 뿌리 = fs.mkdtempSync(path.join(os.tmpdir(), 'prodev-roots-'));
+  const 사본 = 저장소사본();
+  const 이름 = '새과제';
+  const 폴더 = path.join(뿌리, 이름);
+  assert.ok(!fs.existsSync(폴더), '시작할 때는 없어야 한다');
+
+  const out = 돌린다(['--project', 이름], { __repo: 사본, MINIDISCORD_BOT_FILES_DIR: 뿌리, PRODEV_PROJECT: '' });
+
+  assert.ok(fs.existsSync(폴더), `① 과제 폴더가 안 생겼다: ${폴더}\n${out}`);
+  assert.ok(fs.existsSync(path.join(폴더, '.git')), '② git 이 안 생겼다');
+  assert.ok(fs.existsSync(path.join(사본, 'bots', `prodev-${이름}-비서`)), '③ 봇 폴더가 안 생겼다');
+  for (const d of ['cards', 'wiki', 'inbox', 'journal', 'threads', 'tmp']) {
+    assert.ok(fs.existsSync(path.join(폴더, d)), `하위 폴더가 없다: ${d}`);
+  }
+  fs.rmSync(사본, { recursive: true, force: true });
+  fs.rmSync(뿌리, { recursive: true, force: true });
+});
+
+test('setup --project — 있는 폴더에 다시 돌려도 안의 것을 건드리지 않는다 (ADR-023)', () => {
+  const 뿌리 = fs.mkdtempSync(path.join(os.tmpdir(), 'prodev-roots2-'));
+  const 사본 = 저장소사본();
+  const 이름 = '다시과제';
+  const 폴더 = path.join(뿌리, 이름);
+  const env = { __repo: 사본, MINIDISCORD_BOT_FILES_DIR: 뿌리, PRODEV_PROJECT: '' };
+
+  돌린다(['--project', 이름], env);
+  // 사람이 일한 것처럼 파일 둘을 둔다. 두 번째 실행이 이것을 건드리면 안 된다.
+  fs.writeFileSync(path.join(폴더, 'charter.md'), '---\nPL: 김피엘\n---\n# 목적\n수율을 올린다\n');
+  fs.writeFileSync(path.join(폴더, 'cards', 'E-0001.md'), '---\nid: E-0001\n---\n# 카드 하나\n');
+  const 전 = 나무(폴더);
+
+  const out = 돌린다(['--project', 이름], env);
+
+  assert.deepStrictEqual(나무(폴더), 전, '두 번째 실행이 과제 폴더 안을 바꿨다');
+  assert.match(out, /있음/, '두 번째 실행이 "있음" 이라 말하지 않았다');
+  fs.rmSync(사본, { recursive: true, force: true });
+  fs.rmSync(뿌리, { recursive: true, force: true });
+});
+
+test('setup --project 이름만 — 파일 뿌리를 모르면 까닭을 대고 죽는다 (ADR-023)', () => {
+  const 사본 = 저장소사본();
+  let 터진것 = null;
+  try {
+    돌린다(['--project', '뿌리없음'], { __repo: 사본, MINIDISCORD_BOT_FILES_DIR: '', PRODEV_PROJECT: '' });
+  } catch (e) { 터진것 = e; }
+
+  assert.ok(터진것, '조용히 엉뚱한 자리에 만들면 안 된다 — 죽어야 한다');
+  assert.match(String(터진것.stderr), /MINIDISCORD_BOT_FILES_DIR/, `까닭이 안 보인다: ${터진것.stderr}`);
+  fs.rmSync(사본, { recursive: true, force: true });
+});
+
 // 이 파일의 마지막 시험이다. 앞의 시험들이 실제 저장소를 만졌는지 여기서 본다.
 test('시험은 실제 bots/ 를 만지지 않는다 (시험 전후 목록이 같다)', () => {
   // 2026-09-10 에 setup.js 를 실제 저장소에서 돌려 사람이 쓰던 봇 폴더를 덮어쓰고,
