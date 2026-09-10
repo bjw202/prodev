@@ -78,6 +78,23 @@ test('명령 6/6 show — #2 는 본문에 "출석체크" 가 있고 첨부 0', 
   assert.ok(run('show', '2').includes('출석체크'));
 });
 
+test('명령 곁 — --speaker 는 말한이 하나로 거른다', () => {
+  // 거르지 않으면 141건에 말한이 일곱, 거르면 29건에 orchestrator 하나다.
+  const 전부 = rows('search', '수율', '--limit', '500');
+  assert.strictEqual(전부.length, 141);
+  assert.ok(new Set(전부.map(m => m.author)).size > 1);
+
+  const 하나 = rows('search', '수율', '--speaker', 'orchestrator', '--limit', '500');
+  assert.strictEqual(하나.length, 29);
+  assert.deepStrictEqual([...new Set(하나.map(m => m.author))], ['orchestrator']);
+  // 거른 것은 안 거른 것의 부분집합이다
+  const 전부id = new Set(전부.map(m => m.id));
+  for (const m of 하나) assert.ok(전부id.has(m.id), `#${m.id} 가 안 거른 결과에 없다`);
+
+  // 없는 말한이면 빈 결과 (죽지 않는다)
+  assert.strictEqual(rows('search', '수율', '--speaker', '없는사람', '--limit', '500').length, 0);
+});
+
 // ── AND 두 건 ───────────────────────────────────────────────
 
 test('AND 1/2 — 낱말 둘은 둘 다 든 글만. 순서를 바꿔도 같다', () => {

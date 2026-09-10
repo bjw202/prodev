@@ -18,8 +18,12 @@ function project() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'prodev-intake-'));
 }
 function take(proj, ...files) {
+  // 뿌리를 안 정한 채로 부른다 — 이 시험들은 뿌리 검사가 아니라 판·SHA 를 본다
+  const env = { ...process.env };
+  delete env.PRODEV_INTAKE_ROOTS;
+  delete env.MINIDISCORD_BOT_FILES_DIR;
   const out = execFileSync(process.execPath, [INTAKE, 'yield-by-lot', ...files, '--project', proj, '--date', '20260825', '--json'],
-    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], env });
   return JSON.parse(out);
 }
 const sha = f => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
@@ -74,6 +78,44 @@ test('intake — 사이드카가 fixture 와 같은 꼴이다 (열 표 · 뜻·�
   const 본 = fs.readFileSync(path.join(__dirname, 'fixtures', 'find', 'inbox', '20260825-yield-by-lot', 'files.md'), 'utf8');
   assert.strictEqual(본.split('\n')[0], side.split('\n')[0]);
   assert.ok(본.includes('| 열 | 뜻 | 단위 |') && side.includes('| 열 | 뜻 | 단위 |'));
+});
+
+test('intake — 허용 뿌리 밖의 파일은 거절한다 (첨부로 온 것만 들인다)', () => {
+  const proj = project();
+  const 뿌리 = fs.mkdtempSync(path.join(os.tmpdir(), 'prodev-uploads-'));
+  const 안 = path.join(뿌리, 'ok.csv');
+  fs.copyFileSync(SRC, 안);
+  const 밖 = SRC;                                   // 저장소 안이지만 업로드 뿌리 밖이다
+
+  let code = 0, out = '';
+  try {
+    out = execFileSync(process.execPath,
+      [INTAKE, 'yield-by-lot', 안, 밖, '--project', proj, '--date', '20260825', '--json'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], env: { ...process.env, PRODEV_INTAKE_ROOTS: 뿌리 } });
+  } catch (e) { code = e.status; out = e.stdout; }
+
+  const r = JSON.parse(out);
+  const 들인것 = r.files.filter(f => !f.error);
+  const 거절 = r.files.filter(f => f.error);
+  assert.strictEqual(들인것.length, 1);
+  assert.strictEqual(들인것[0].name, 'ok.csv');
+  assert.strictEqual(거절.length, 1);
+  assert.match(거절[0].error, /허용 뿌리 밖이다/);
+  assert.strictEqual(code, 1, '한 건이라도 못 들이면 조용히 끝내지 않는다');
+
+  // 거절한 것은 정말 안 베꼈다
+  const dir = path.join(proj, 'inbox', '20260825-yield-by-lot');
+  assert.deepStrictEqual(fs.readdirSync(dir).sort(), ['files.md', 'ok.csv']);
+  // 사이드카에도 거절한 파일의 절이 없다
+  const side = fs.readFileSync(path.join(dir, 'files.md'), 'utf8');
+  assert.ok(!side.includes('sample.csv'), '거절한 파일이 사이드카에 적혔다');
+});
+
+test('intake — 뿌리를 안 정하면 막지 않는다 (혼자 손으로 돌릴 때)', () => {
+  const proj = project();
+  const r = take(proj, SRC);                        // PRODEV_INTAKE_ROOTS 도 BOT_FILES_DIR 도 없다
+  assert.strictEqual(r.files.length, 1);
+  assert.ok(!r.files[0].error, JSON.stringify(r.files[0]));
 });
 
 test('intake — 들인 원본은 잠긴다 (0층 불변)', () => {

@@ -11,6 +11,11 @@
 //
 // 왜 덮어쓰지 않나: 0층은 불변이다. 같은 이름의 새 판이 와도 앞 판이 남아 있어야
 // "그때 그 숫자가 어느 파일에서 나왔나"를 되짚을 수 있다. 뜻·단위는 문답으로 채운다 (비서가 묻는다).
+//
+// 어디서 들이나: 허용 뿌리 안의 파일만 들인다. 뿌리는 PRODEV_INTAKE_ROOTS(구분자로 여럿) 또는
+// MINIDISCORD_BOT_FILES_DIR 이다. 뿌리를 안 정했으면 아무 데서나 들인다 (혼자 손으로 돌릴 때).
+// 왜 막나: 첨부로 온 것만 들여야 한다. 봇이 아무 경로나 받아 베끼면 과제 저장소가 남의 파일로 채워지고,
+// 그 파일은 0444 로 잠긴 채 커밋된다 — 되돌리기 어려운 쪽이다.
 
 const fs = require('fs');
 const path = require('path');
@@ -18,6 +23,25 @@ const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 
 const REPO = path.resolve(__dirname, '..');
+
+// 허용 뿌리 목록. 없으면 null (막지 않는다).
+function 뿌리들() {
+  const raw = process.env.PRODEV_INTAKE_ROOTS || process.env.MINIDISCORD_BOT_FILES_DIR || '';
+  const list = raw.split(path.delimiter).map(x => x.trim()).filter(Boolean).map(x => path.resolve(x));
+  return list.length ? list : null;
+}
+
+// src 가 뿌리 안인가. 심볼릭 링크로 빠져나가는 것을 막으려고 realpath 로 편다.
+function 안에있나(src, 뿌리) {
+  let 실제;
+  try { 실제 = fs.realpathSync(src); } catch { 실제 = path.resolve(src); }
+  return 뿌리.some(r => {
+    let R;
+    try { R = fs.realpathSync(r); } catch { R = path.resolve(r); }
+    const rel = path.relative(R, 실제);
+    return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+  });
+}
 
 function sha256(file) {
   return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
@@ -94,9 +118,14 @@ function intake(slug, files, opt) {
   const side = path.join(dir, 'files.md');
   if (!fs.existsSync(side)) fs.writeFileSync(side, '# 파일\n\n');
 
+  const 뿌리 = 뿌리들();
   const done = [];
   for (const src of files) {
     if (!fs.existsSync(src)) { done.push({ src, error: '파일이 없다' }); continue; }
+    if (뿌리 && !안에있나(src, 뿌리)) {
+      done.push({ src, error: `허용 뿌리 밖이다 (${뿌리.join(' · ')})` });
+      continue;
+    }
     const name = freeName(dir, path.basename(src));
     const dest = path.join(dir, name);
     fs.copyFileSync(src, dest);
@@ -124,7 +153,8 @@ function main() {
     process.exit(1);
   }
   const r = intake(slug, files, opt);
-  if (opt.json) { console.log(JSON.stringify(r, null, 2)); return; }
+  const 거절 = r.files.filter(f => f.error);
+  if (opt.json) { console.log(JSON.stringify(r, null, 2)); if (거절.length) process.exit(1); return; }
   console.log(`들임: ${r.dir}`);
   for (const f of r.files) {
     if (f.error) { console.log(`  ! ${f.src} — ${f.error}`); continue; }
@@ -132,6 +162,7 @@ function main() {
     console.log(`  SHA-256: ${f.sha256}`);
   }
   console.log(`사이드카: ${r.sidecar}  (뜻·단위는 문답으로 채운다)`);
+  if (거절.length) process.exit(1);   // 한 건이라도 못 들였으면 조용히 끝내지 않는다
 }
 
 if (require.main === module) main();

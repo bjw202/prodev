@@ -103,6 +103,47 @@ test('session-start — 잘림: 긴 파일은 앞부분만 싣고 "잘림"과 �
   assert.ok(c.includes('(없음 — 아직 일정이 없다)'));
 });
 
+test('session-start — handoff-compact 만 있음: 인수인계서가 먼저 오고 나머지는 "없음" 이다', () => {
+  const proj = tmp('ss-handoff');
+  const 인수 = path.join(proj, 'handoff-compact.md');
+  fs.writeFileSync(인수, ['# 인수인계서', '', '## 하던 일', 'E-0007 문답 · 남은 질문 1', '',
+    '## 방과 마지막 message_id', '- chat_id 2 · #418', ''].join('\n'));
+
+  const c = 문맥({ PRODEV_BOT: '시험비서', PRODEV_PROJECT: proj, PRODEV_HANDOFF: 인수 });
+
+  // 알맹이가 실렸다
+  assert.ok(c.includes('E-0007 문답 · 남은 질문 1'));
+  assert.ok(c.includes('- chat_id 2 · #418'));
+  // 나머지는 없다고 말한다
+  assert.ok(c.includes('(없음 — 아직 발의하지 않았다. charter 스킬부터)'));
+  assert.ok(c.includes('(없음 — 지금 붙들고 있는 실이 없다)'));
+
+  // 절 순서가 6.4 대로다: 인수인계서 → 헌장 → 일정 → 열린 실 → 어제 일지 → 색인 → 마지막 일지
+  const 자리 = ['인수인계서 (handoff-compact.md)', '헌장 (charter.md)', '일정 (schedule.md)',
+    '열린 실 (threads/)', '어제 일지', '색인 머리 (index.md)', '마지막 일지'].map(k => c.indexOf(`## ${k}`));
+  for (const i of 자리) assert.ok(i >= 0, `절이 빠졌다: ${자리.indexOf(i)}`);
+  assert.deepStrictEqual(자리, [...자리].sort((a, b) => a - b), '절 순서가 6.4 와 다르다');
+});
+
+test('session-start — 60줄 넘는 일지는 앞부분만 싣고 잘렸다고 말한다', () => {
+  const proj = tmp('ss-journal');
+  fs.mkdirSync(path.join(proj, 'journal'), { recursive: true });
+  const d = new Date(Date.now() - 86400000);
+  const 어제날 = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  // 상한은 60줄. 200줄을 준다
+  fs.writeFileSync(path.join(proj, 'journal', `${어제날}.md`),
+    Array.from({ length: 200 }, (_, i) => `- 일지 줄 ${i + 1}`).join('\n'));
+
+  const c = 문맥({ PRODEV_BOT: '시험비서', PRODEV_PROJECT: proj, PRODEV_HANDOFF: path.join(proj, '없다.md') });
+
+  assert.ok(c.includes(`## 어제 일지 (journal/${어제날}.md) (앞부분만 · 잘림)`), c.slice(0, 400));
+  assert.match(c, /… \(140줄 더 있음 — 파일을 직접 읽어라\)/);
+  assert.ok(c.includes('- 일지 줄 60'), '앞 60줄이 안 실렸다');
+  assert.ok(!c.includes('- 일지 줄 61'), '상한을 넘겨 실었다');
+  // 일지가 있으므로 마지막 일지 날짜도 어제다
+  assert.ok(c.includes(`## 마지막 일지\n${어제날} (1일 전) · 일지 1개`), c.slice(-200));
+});
+
 // ── pre-compact 셋 ────────────────────────────────────────
 
 const 칸 = ['하던 일', '방과 마지막 message_id', '사람이 기다리는 것', '미해결 질문', '다음 한 걸음', '열어 둔 파일'];
@@ -159,6 +200,25 @@ test('pre-compact — 보내는 입력의 tool_result 는 300자로 잘린다', 
   const 원본 = fs.readFileSync(TRANSCRIPT, 'utf8');
   assert.ok(원본.includes('ok ok ok'), '기록 fixture 에 긴 tool_result 가 없다');
   assert.ok(줄들.some(l => l.endsWith('…(잘림)')), '잘린 줄이 하나도 없다');
+});
+
+test('pre-compact — 요약이 실패해도 exit 0 이고, 빈 칸으로 채우지 않는다 (fail-open)', () => {
+  const dir = tmp('pc-fail');
+  const out = path.join(dir, 'handoff-compact.md');
+  const r = hook('pre-compact.js', { hook_event_name: 'PreCompact', trigger: 'auto', transcript_path: TRANSCRIPT },
+    { PRODEV_FAKE_CLAUDE: 'fail', PRODEV_HANDOFF: out });
+
+  assert.strictEqual(r.code, 0, '압축을 막으면 안 된다');
+  const md = fs.readFileSync(out, 'utf8');
+  assert.match(md, /\*\*못 썼다: .*요약이 비었다/);
+  // 칸은 남기되 알맹이가 있는 척하지 않는다
+  for (const k of 칸) {
+    assert.ok(md.includes(`## ${k}`), `칸이 빠졌다: ${k}`);
+    const 뒤 = md.split(`## ${k}\n`)[1].split('\n## ')[0].trim();
+    assert.ok(뒤.startsWith('(모름'), `${k} 칸이 아는 척한다: ${뒤.slice(0, 40)}`);
+  }
+  // 무엇을 보내려 했는지는 그대로 남는다 — 되짚을 자리다
+  assert.ok(fs.existsSync(`${out}.input.txt`));
 });
 
 test('pre-compact — 기록을 못 읽어도 exit 0 이고, 못 썼다고 파일에 적는다', () => {

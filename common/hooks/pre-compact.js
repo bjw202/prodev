@@ -97,6 +97,8 @@ function 모의요약(기록) {
 }
 
 function 요약받기(물음) {
+  // 시험용: PRODEV_FAKE_CLAUDE=fail 은 요약이 죽는 자리를 만든다 (fail-open 이 정말 도는지 보려고).
+  if (process.env.PRODEV_FAKE_CLAUDE === 'fail') return { 글: '', 길: '모의(일부러 실패)' };
   if (process.env.PRODEV_FAKE_CLAUDE === '1') return { 글: 모의요약(물음), 길: '모의(PRODEV_FAKE_CLAUDE=1)' };
   // 빈 cwd 에서 돌린다. 이 세션의 CLAUDE.md·설정이 딸려 들어가면 요약이 아니라 다른 일을 시작한다.
   const 빈곳 = fs.mkdtempSync(path.join(os.tmpdir(), 'prodev-compact-'));
@@ -150,6 +152,8 @@ function main() {
     // 무엇을 보냈는지 남긴다 — 인수인계서가 이상할 때 되짚을 자리이고, 시험이 보는 자리다.
     try { fs.writeFileSync(`${낼곳}.input.txt`, 물음); } catch {}
     const { 글, 길 } = 요약받기(물음);
+    // 빈 요약은 성공이 아니다. 빈 칸으로 채운 인수인계서가 남는 것이 가장 나쁘다.
+    if (!String(글).trim()) throw new Error(`요약이 비었다 (${길})`);
     본문 = [
       `# 인수인계서 (압축 직전 ${결과.때})`,
       `방아쇠: ${들어온것.trigger || '모름'} · 요약: ${길}`,
