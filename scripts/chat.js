@@ -1,15 +1,20 @@
 #!/usr/bin/env node
 // chat.js — minidiscord 대화 기록을 읽기 전용으로 직접 찾는다. 봇도 사람도 쓴다.
 //
-//   node scripts/chat.js rooms                                방 목록 (번호 · 이름 · 상태 · 글 수)
-//   node scripts/chat.js search <말> [--room <번호|이름>] [--speaker <이름>] [--since <ISO>] [--until <ISO>] [--limit N] [--full]
-//   node scripts/chat.js around <message_id> [--before N] [--after N] [--full]
-//   node scripts/chat.js since <방> <message_id> [--limit N] [--full]     그 번호 다음부터 순서대로
-//   node scripts/chat.js tail <방> [N] [--full]                              마지막 N개
-//   node scripts/chat.js show <message_id>                                    한 건 전문 + 첨부 경로
+//   node scripts/chat.js rooms [--json]                       방 목록 (번호 · 이름 · 상태 · 글 수)
+//   node scripts/chat.js search <말> [<말> ...] [--room <번호|이름>] [--speaker <이름>] [--since <ISO>] [--until <ISO>] [--limit N] [--full] [--json]
+//   node scripts/chat.js around <message_id> [--before N] [--after N] [--full] [--json]
+//   node scripts/chat.js since <방> <message_id> [--limit N] [--full] [--json]   그 번호 다음부터 순서대로
+//   node scripts/chat.js tail <방> [N] [--full] [--json]                          마지막 N개
+//   node scripts/chat.js show <message_id> [--json]                               한 건 전문 + 첨부 경로
 //
 // 왜 fetch_history 가 아니라 이것인가: fetch_history 는 최근 N 개를 자른 뒤 거른다(밀린 글이 N 을 넘으면 앞을 놓친다)
 // 그리고 말로 찾지 못한다. 이 스크립트는 SQLite 를 readOnly 로 열어 전체를 본다. 서버는 켜 둔 채로 된다.
+//
+// search 는 낱말 여럿을 AND 로 본다: `search 샤워헤드 수율` 은 둘 다 든 글만 낸다.
+// 따옴표로 묶은 하나는 그대로 한 덩이다: `search "샤워헤드 교체"` 는 붙어 있는 것만 찾는다.
+// 맞대보기 전에 양쪽을 NFC 로 고르고 대소문자를 접는다 (자모가 갈라져 저장된 글도 걸리게).
+// 조사 떼기와 하이픈·공백 접기는 여기가 아니라 find.js 가 한다 (ARCHITECTURE 5.3).
 //
 // DB 위치: MINIDISCORD_DB 환경변수 > 루트/minidiscord/server/data/minidiscord.db (루트 = 이 파일의 두 단계 위의 부모).
 // 한 줄 형식: #id  YYYY-MM-DD HH:MM  [방]  이름(TO→받는이): 본문 앞 160자 [📎n]   (--full 이면 본문 전체)
@@ -23,8 +28,14 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const DB = process.env.MINIDISCORD_DB || path.join(ROOT, 'minidiscord', 'server', 'data', 'minidiscord.db');
 
 function usage(code) {
-  process.stderr.write(fs.readFileSync(__filename, 'utf8').split('\n').slice(1, 8).map(l => l.replace(/^\/\/ ?/, '')).join('\n') + '\n');
+  const head = fs.readFileSync(__filename, 'utf8').split('\n').slice(1, 8);
+  process.stderr.write(head.map(l => l.replace(/^\/\/ ?/, '')).join('\n') + '\n');
   process.exit(code);
+}
+
+// 맞대보기용 꼴. NFC 로 고르고 대소문자를 접는다. 이 함수 하나만이 "같다"의 뜻이다.
+function norm(s) {
+  return String(s == null ? '' : s).normalize('NFC').toLowerCase();
 }
 
 function parseArgs(argv) {
@@ -34,6 +45,7 @@ function parseArgs(argv) {
     if (a.startsWith('--')) {
       const k = a.slice(2);
       if (k === 'full') opt.full = true;
+      else if (k === 'json') opt.json = true;
       else { opt[k] = argv[++i]; }
     } else pos.push(a);
   }
@@ -76,9 +88,25 @@ function fmt(row, full) {
   return `#${row.id}  ${t}  [${row.room_name}]  ${row.author}${to}: ${body}${att}`;
 }
 
-function print(rows, full) {
+// --json 은 사람 눈이 아니라 다른 스크립트(find.js · 검수)를 위한 것이다. 칸 이름을 바꾸지 않는다.
+function json(row) {
+  return {
+    id: row.id,
+    room_id: row.room_id,
+    room: row.room_name,
+    author: row.author,
+    author_type: row.author_type,
+    created_at: row.created_at,
+    body: row.body,
+    attachments: row.n_att,
+    targets: row.targets || null,
+  };
+}
+
+function print(rows, opt) {
+  if (opt.json) { console.log(JSON.stringify(rows.map(json), null, 2)); return; }
   if (!rows.length) { console.log('(없음)'); return; }
-  for (const r of rows) console.log(fmt(r, full));
+  for (const r of rows) console.log(fmt(r, opt.full));
   console.log(`— ${rows.length}건`);
 }
 
@@ -92,20 +120,32 @@ function main() {
   if (cmd === 'rooms') {
     const rows = db.prepare(`SELECT r.id, r.name, r.status, (SELECT COUNT(*) FROM messages m WHERE m.room_id = r.id) AS n,
       (SELECT MAX(id) FROM messages m WHERE m.room_id = r.id) AS last_id FROM rooms r ORDER BY r.id`).all();
+    if (opt.json) {
+      console.log(JSON.stringify(rows.map(r => ({ id: r.id, name: r.name, status: r.status, messages: r.n, last_id: r.last_id ?? null })), null, 2));
+      return;
+    }
     for (const r of rows) console.log(`${r.id}\t${r.name}\t${r.status}\t${r.n}건\t마지막 #${r.last_id ?? '-'}`);
     return;
   }
 
   if (cmd === 'search') {
-    const q = pos.slice(1).join(' ');
-    if (!q) usage(1);
-    const where = ['m.body LIKE ? ESCAPE \'\\\'']; const args = ['%' + q.replace(/[\\%_]/g, c => '\\' + c) + '%'];
+    const terms = pos.slice(1).filter(t => t !== '');
+    if (!terms.length) usage(1);
+    const needles = terms.map(norm);
+    // 방·말한이·때는 SQL 이 거르고, 낱말 AND 는 여기서 NFC 로 맞대본다.
+    // LIKE 로는 자모가 갈라진 글을 놓치므로 본문 맞대보기를 SQL 에 맡기지 않는다.
+    const where = ['1=1']; const args = [];
     const rid = roomId(db, opt.room); if (rid != null) { where.push('m.room_id = ?'); args.push(rid); }
     if (opt.speaker) { where.push('COALESCE(u.username, b.name) = ?'); args.push(opt.speaker); }
     if (opt.since) { where.push('m.created_at >= ?'); args.push(opt.since); }
     if (opt.until) { where.push('m.created_at < ?'); args.push(opt.until); }
-    const rows = db.prepare(`${BASE} WHERE ${where.join(' AND ')} ORDER BY m.id DESC LIMIT ?`).all(...args, limit).reverse();
-    print(rows, opt.full);
+    const hits = [];
+    // 최근 것부터 훑다가 limit 만큼 차면 멈춘다. 전체를 메모리에 올리지 않는다.
+    for (const row of db.prepare(`${BASE} WHERE ${where.join(' AND ')} ORDER BY m.id DESC`).iterate(...args)) {
+      const hay = norm(row.body);
+      if (needles.every(n => hay.includes(n))) { hits.push(row); if (hits.length >= limit) break; }
+    }
+    print(hits.reverse(), opt);
     return;
   }
 
@@ -113,11 +153,14 @@ function main() {
     const id = Number(pos[1]); if (!id) usage(1);
     const before = Number(opt.before ?? 10), after = Number(opt.after ?? 10);
     const center = db.prepare(`${BASE} WHERE m.id = ?`).get(id);
-    if (!center) { console.log(`#${id} 없음`); return; }
+    if (!center) {
+      if (opt.json) { console.log('[]'); return; }
+      console.log(`#${id} 없음`); return;
+    }
     const rows = db.prepare(`${BASE} WHERE m.room_id = ? AND m.id BETWEEN ? AND ? ORDER BY m.id`).all(center.room_id, id - before * 4, id + after * 4)
       .filter(r => r.id !== id);
     const b = rows.filter(r => r.id < id).slice(-before), a = rows.filter(r => r.id > id).slice(0, after);
-    print([...b, center, ...a], opt.full);
+    print([...b, center, ...a], opt);
     return;
   }
 
@@ -125,9 +168,9 @@ function main() {
     const rid = roomId(db, pos[1]); const id = Number(pos[2] ?? 0);
     if (rid == null) usage(1);
     const rows = db.prepare(`${BASE} WHERE m.room_id = ? AND m.id > ? ORDER BY m.id LIMIT ?`).all(rid, id, limit);
-    print(rows, opt.full);
+    print(rows, opt);
     const last = rows[rows.length - 1];
-    if (last) console.log(`다음 since: ${last.id}`);
+    if (last && !opt.json) console.log(`다음 since: ${last.id}`);
     return;
   }
 
@@ -135,18 +178,23 @@ function main() {
     const rid = roomId(db, pos[1]); const n = Math.min(Number(pos[2] || 20) || 20, 500);
     if (rid == null) usage(1);
     const rows = db.prepare(`${BASE} WHERE m.room_id = ? ORDER BY m.id DESC LIMIT ?`).all(rid, n).reverse();
-    print(rows, opt.full);
+    print(rows, opt);
     return;
   }
 
   if (cmd === 'show') {
     const id = Number(pos[1]); if (!id) usage(1);
     const row = db.prepare(`${BASE} WHERE m.id = ?`).get(id);
-    if (!row) { console.log(`#${id} 없음`); return; }
+    if (!row) {
+      if (opt.json) { console.log('null'); return; }
+      console.log(`#${id} 없음`); return;
+    }
+    const att = db.prepare('SELECT id, filename, stored_path, size, mime FROM attachments WHERE message_id = ?').all(id);
+    const paths = att.map(a => ({ id: a.id, filename: a.filename, mime: a.mime, size: a.size, path: path.resolve(path.dirname(DB), '..', a.stored_path) }));
+    if (opt.json) { console.log(JSON.stringify({ ...json(row), attachments: paths }, null, 2)); return; }
     console.log(fmt({ ...row, body: '' }, false).replace(/: $/, ''));
     console.log(row.body);
-    const att = db.prepare('SELECT id, filename, stored_path, size, mime FROM attachments WHERE message_id = ?').all(id);
-    for (const a of att) console.log(`📎 ${a.filename}  (${a.mime}, ${a.size}B)  ${path.resolve(path.dirname(DB), '..', a.stored_path)}`);
+    for (const a of paths) console.log(`📎 ${a.filename}  (${a.mime}, ${a.size}B)  ${a.path}`);
     return;
   }
 
