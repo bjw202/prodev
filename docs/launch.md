@@ -12,7 +12,7 @@
 ```
 ① 시험 서버 (다른 포트 · 빈 DB · 봇 첨부 뿌리)      사람
 ② 계정 셋 (PL · 과제원 · 알림)                      사람
-③ 봇 등록 · 설정 · 방 일곱      node scripts/setup.js          사람이 돌린다
+③ 봇 등록 · 설정 · 방 둘        node scripts/setup.js          사람이 돌린다
 ④ 봇 기동                       cd bots/<봇> && claude …        사람
 ⑤ 확인                          본방에 @TO 하나                 사람
 ⑥ 재생 토큰 (T3.2 용)           REPLAY_TOKEN_PL · _MEMBER      사람
@@ -59,7 +59,7 @@ curl -sS -i -X POST http://127.0.0.1:3123/api/auth/login \
 # set-cookie: md_session=<이 값이 토큰이다>; Path=/; HttpOnly; SameSite=Lax
 ```
 
-## 3. 봇 등록 · 설정 · 방 일곱
+## 3. 봇 등록 · 설정 · 방 둘
 
 ```bash
 cd <루트>/prodev
@@ -74,7 +74,9 @@ node scripts/setup.js rooms 시험
 ```
 
 `setup.js` 가 만드는 것: `bots/prodev-<과제>-비서/` 아래 `.env`(토큰) · `.claude/settings.json`(훅 셋 배선 · env 셋 · 허용 목록) · `.mcp.json` · `rooms.json`.
-방 일곱은 `prodev-<과제>` 와 `prodev-<과제>/{들이기,자료,리서치,특허,논문,보고}` 다.
+방 둘은 `prodev-<과제>` (본방) 와 `prodev-<과제>/files` 다 (ADR-022).
+
+> **지금 상태 (2026-09-10)**: ADR-022 는 설계 문서에서만 정해졌다. `setup.js` 는 아직 옛 방 묶음을 만든다 — 뒤따르는 코드 PR 이 들어간 뒤에 이 절대로 된다.
 
 확인할 것: 출력 ④ "명령 N/N 풀림" 에 못 찾은 명령이 없어야 한다. 있으면 그 명령을 쓰는 일이 통째로 막힌다.
 
@@ -358,7 +360,7 @@ crontab -e                             # 그 두 줄을 붙인다
 | 4 | 서버를 띄운다 (10.5) | `curl -sS http://127.0.0.1:3000/api/health` → `{"ok":true}` |
 | 5 | 브라우저로 계정 셋을 만든다 (10.6) | 방 화면이 보인다 |
 | 6 | `node scripts/setup.js --project <루트>/projects/<과제>` | 출력 ④ 에 "명령 N/N 풀림" · 못 찾은 명령 0 · `bots/<봇>/.mcp.json` 이 생김 |
-| 7 | `node scripts/setup.js rooms <과제>` | 방 일곱 · `rooms.json` |
+| 7 | `node scripts/setup.js rooms <과제>` | 방 둘 · `rooms.json` |
 | 8 | 알림 토큰을 `.env` 에 넣는다 (10.6) | |
 | 9 | 봇을 켠다 (4절 그대로) | 세션에 스킬 열셋과 에이전트 여섯이 보인다 |
 | 10 | 본방에 `@TO(prodev-<과제>-비서) 안녕` | 봇이 그 방에 답한다 |

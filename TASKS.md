@@ -46,8 +46,8 @@
 - 크기: 1.5일
 
 ### T1.6 setup.js — prodev 직접
-- 할 일: crew 것에서 봇 하나 · `bots/<이름>/` 생성(settings.json 에 env 셋 · 훅 배선 · 허용 목록 = crew 목록 + python3 + 회차 5 의 31건) · `rooms <과제>` (방 일곱 + 봇 참여, API) · `cron` (crontab 두 줄 출력) · `archive <방>`
-- 끝 조건: 서버를 띄운 시험 환경에서 `setup.js` → `setup.js rooms 시험과제` → `GET /api/rooms` 에 방 일곱, 봇 참여 일곱
+- 할 일: crew 것에서 봇 하나 · `bots/<이름>/` 생성(settings.json 에 env 셋 · 훅 배선 · 허용 목록 = crew 목록 + python3 + 회차 5 의 31건) · `rooms <과제>` (방 둘 + 봇 참여, API) · `cron` (crontab 두 줄 출력) · `archive <방>`
+- 끝 조건: 서버를 띄운 시험 환경에서 `setup.js` → `setup.js rooms 시험과제` → `GET /api/rooms` 에 방 둘(본방 · `/files`), 봇 참여 둘
 - 크기: 1일
 
 ### T1.M 1단계 관문 — meta 지시

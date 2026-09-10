@@ -40,7 +40,7 @@ prodev/
 
 | 파일 | 사건 | 하는 것 | 실패했을 때 |
 |---|---|---|---|
-| `session-start.js` | SessionStart (startup·resume·clear·compact) | 파일 일곱을 순서대로 `additionalContext` 로. **없음·못 읽음·잘림을 말로 가른다**. `compact` 일 때만 방에 "정리가 끝났습니다" 한 줄 | fail-open (exit 0) |
+| `session-start.js` | SessionStart (startup·resume·clear·compact) | `ARCHITECTURE.md` 6.4 의 파일들을 그 순서대로 `additionalContext` 로. **없음·못 읽음·잘림을 말로 가른다**. `compact` 일 때만 방에 "정리가 끝났습니다" 한 줄 | fail-open (exit 0) |
 | `pre-compact.js` | PreCompact | 기록 꼬리 → `claude -p` 요약 → `handoff-compact.md`, **본방**에 "정리 중" (알림 계정. 방은 `chat_id` → env → `rooms.json` 의 본방) | fail-open. 못 썼으면 "못 썼다"를 파일에 적는다 |
 | `pre-reply.js` | PreToolUse `mcp__minidiscord-channel__reply` | 다섯을 차례로 본다 (아래) | 막을 때 **exit 2 + stderr 한 줄**. 통과는 exit 0 무언 |
 | `places.js` | (모듈) | 봇 폴더 · 과제 폴더 · DB · 방 이름을 env 로 찾는다. **알림 한 자리**(`알릴방` · `알림토큰` · `알린다`) — 훅 둘이 같이 쓴다 | 모르면 `null` — 부르는 쪽이 정한다 |
@@ -48,11 +48,13 @@ prodev/
 `pre-reply.js` 가 보는 차례 (앞이 걸리면 뒤는 안 본다):
 1. `chat_id` 없음 → 막음
 2. 분량 (`count.js` 로 잰다) → 넘으면 막음
-3. `/자료` 방이면 확정 조건 (ADR-008 + 봉투 벗기기 보충) → 아니면 막음
-4. `/보고` 방 발송이면 결재 글 작성자 = `charter.md` 의 PL → 아니면 막음
+3. 옛 카드 방(ADR-022 전 이름)이면 확정 조건 (ADR-008 + 봉투 벗기기 보충) → 아니면 막음
+4. 옛 보고 방의 발송이면 결재 글 작성자 = `charter.md` 의 PL → 아니면 막음
 5. `index.json` 의 `errors > 0` → 막음
 
-DB 를 못 열면 `/자료` 방만 fail-closed. 방 갈래를 DB 로도 `rooms.json` 으로도 모르면 막지 않는다.
+DB 를 못 열면 그 방만 fail-closed. 방 갈래를 DB 로도 `rooms.json` 으로도 모르면 막지 않는다.
+
+**ADR-022 뒤에는 3·4 의 방아쇠가 방이 아니라 표식이 된다** (`[카드]` · `[발송]`). 조건 ② 의 방 이름은 `/files` 이고, 방 갈래를 몰라도 관문이 걸린다. 위 다섯은 **지금 코드 그대로**를 적은 것이고, 코드 PR 에서 바뀐다.
 
 ## 4. `.claude/` — 에이전트 여섯 · 스킬 열셋
 
@@ -68,7 +70,7 @@ DB 를 못 열면 `/자료` 방만 fail-closed. 방 갈래를 DB 로도 `rooms.j
 | 명령 | 만드는 것 |
 |---|---|
 | `setup.js [--project <과제폴더>]` | 과제 폴더의 하위 열 · 봇 폴더 · `.env`(봇 토큰) · `.claude/settings.json` · `.mcp.json`(토큰 있을 때만) |
-| `setup.js rooms <과제>` | 방 일곱 + 봇 참여 + `rooms.json` |
+| `setup.js rooms <과제>` | 옛 방 묶음 + 봇 참여 + `rooms.json`. **ADR-022 뒤에는 방 둘** — 코드 PR 에서 바뀐다 |
 | `setup.js cron` | crontab 두 줄을 stdout 으로 (쿠키 + `--form-string`, ADR-018) |
 | `setup.js archive <방>` | 방 하나 보관 |
 
@@ -145,3 +147,4 @@ cd <임시>/사본 && MINIDISCORD_DIR=<실제 minidiscord> npm run test:server
 - `rooms.json` 의 `last_seen_id` 칸은 `setup.js` 가 0 으로 쓰고 아무도 갱신하지 않는다. 읽는 코드도 없다 (ADR-021).
 - cron 두 줄은 `setup.js cron` 이 내기만 한다. crontab 에 붙이는 것은 사람이 한다 (`docs/launch.md` 8절).
 - `bots/` 는 git 제외다. 봇 토큰은 서버 `bots` 표에도 평문으로 있어 잃어도 거기서 꺼낼 수 있다.
+- **ADR-022(방 둘)는 설계 문서에만 들어갔다.** `setup.js` · `pre-reply.js` · 스킬 열셋 · 시험은 아직 옛 방 묶음을 쓴다. 이 문서의 3·5절이 그 자리를 짚어 둔다.
