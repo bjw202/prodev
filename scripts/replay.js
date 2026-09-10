@@ -11,7 +11,8 @@
 //   걸음 넷 중 하나다:
 //     글    { id, room, author:PL|member, text, attach:[상대경로], wait:"bot"|"none", timeout_s,
 //             expect:"정규식", then:[걸음…], else:[걸음…] }
-//     손    { id, manual:"사람이 할 일" }        화면에 내고 Enter 를 기다린다
+//     손    { id, manual:"사람이 할 일" }        TTY 면 Enter 를 기다리고,
+//                                              아니면 <기록.jsonl>.manual-<id>.ok 가 생길 때까지 2초마다 본다
 //     잠깐  { id, sleep_s: 30 }
 //
 // 계정: env REPLAY_TOKEN_PL · REPLAY_TOKEN_MEMBER 가 세션 토큰이다 (쿠키 md_session 에 그대로 실린다).
@@ -145,11 +146,23 @@ async function 봇기다리기(srv, 방, 뒤, 누구, 상한초) {
   return null;
 }
 
-function 엔터기다리기(말) {
-  return new Promise(r => {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    rl.question(`\n  ✋ ${말}\n     끝나면 Enter → `, () => { rl.close(); r(); });
-  });
+// 사람이 손으로 할 일. 두 길이 있다:
+//   화면 앞에 사람이 있으면(stdin 이 TTY) Enter 를 기다린다.
+//   배경에서 돌면(TTY 아님) 신호 파일이 생길 때까지 2초마다 본다 — meta 가 배경에서 돌리고
+//   사람이 파일 하나를 만들어 "했다" 를 알린다. Enter 를 기다리면 배경 재생이 영영 멈춘다.
+function 손기다리기(말, 신호파일) {
+  if (process.stdin.isTTY) {
+    return new Promise(r => {
+      const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+      rl.question(`\n  ✋ ${말}\n     끝나면 Enter → `, () => { rl.close(); r(); });
+    });
+  }
+  console.log(`\n  ✋ ${말}`);
+  console.log(`     끝나면 이 파일을 만들어라: ${신호파일}`);
+  return (async () => {
+    while (!fs.existsSync(신호파일)) await 잠깐(2000);
+    console.log('     신호 받음');
+  })();
 }
 
 // ── 몸통 ─────────────────────────────────────────────────
@@ -187,7 +200,7 @@ async function main() {
       const id = String(s.id);
 
       if (s.manual != null) {
-        await 엔터기다리기(s.manual);
+        await 손기다리기(s.manual, `${기록경로}.manual-${id}.ok`);
         적는다({ id, manual: s.manual, manual_t: 지금() });
         셈.steps++;
         continue;

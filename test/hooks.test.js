@@ -11,7 +11,8 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { execFileSync } = require('child_process');
+const { execFileSync, execFile } = require('child_process');
+const http = require('http');
 
 const ROOT = path.resolve(__dirname, '..');
 const HOOKS = path.join(ROOT, 'common', 'hooks');
@@ -282,4 +283,91 @@ test('pre-reply — 방을 아예 모르면(DB 도 rooms.json 도 없다) 막지
   const r = hook('pre-reply.js', { tool_input: { chat_id: '3', text: 'E-0001 · 훅 시험' } },
     { MINIDISCORD_DB: path.join(tmp('nodb2'), '없다.db'), PRODEV_PROJECT: PROJECT, PRODEV_BOT_DIR: tmp('nobot2') });
   assert.strictEqual(r.code, 0, `stderr: ${r.stderr}`);
+});
+
+
+// ── pre-compact 의 알림 (ADR-018) ─────────────────────────
+//
+// 진짜 minidiscord 를 띄우지 않는다. 요청을 받아 적기만 하는 임시 서버를 세우고,
+// 훅이 **무엇을 어떤 꼴로** 보내는지 본다. 서버는 쿠키 md_session 하나로만 인증하고
+// 글 올리기는 multipart 만 받으므로(2026-09-10 시험 서버로 확인), 그 둘을 여기서 못 박는다.
+
+// 진짜 md_session 은 randomBytes(32).toString('hex') 다 (server/src/auth.ts 38행).
+// 시험도 같은 꼴을 쓴다 — 한글 토큰을 쓰면 HTTP 헤더가 latin1 로 읽혀 시험만 어긋난다.
+const 진짜꼴토큰 = 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90';
+const env토큰 = 'ff00ee11dd22cc33bb44aa5599668877ff00ee11dd22cc33bb44aa5599668877';
+
+function 받아적는서버() {
+  const 받은것 = [];
+  const srv = http.createServer((req, res) => {
+    const c = [];
+    req.on('data', d => c.push(d));
+    req.on('end', () => {
+      받은것.push({
+        method: req.method, url: req.url,
+        cookie: req.headers.cookie || '',
+        auth: req.headers.authorization || '',
+        ctype: req.headers['content-type'] || '',
+        body: Buffer.concat(c).toString('utf8'),
+      });
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end('{"ok":true}');
+    });
+  });
+  return new Promise(r => srv.listen(0, '127.0.0.1', () => r({ srv, 받은것, url: `http://127.0.0.1:${srv.address().port}` })));
+}
+
+// 훅을 돌리되 알림만 본다. 요약은 가짜 claude 로 건너뛴다 (PRODEV_FAKE_CLAUDE).
+//
+// **execFileSync 를 쓰면 안 된다.** 임시 서버가 같은 프로세스에서 도는데, 동기 실행이 이벤트 루프를
+// 붙잡으면 서버가 연결을 받지 못해 curl 이 상한까지 기다리다 죽는다. 훅은 잘 보냈는데 시험만 0건이 된다.
+// 한 번 밟은 자리라 적어 둔다.
+function 압축훅(env, 방번호 = 7) {
+  const 낼곳 = path.join(tmp('notify'), 'handoff-compact.md');
+  return new Promise(r => {
+    execFile(process.execPath, [path.join(HOOKS, 'pre-compact.js')], {
+      encoding: 'utf8',
+      env: { ...process.env, PRODEV_FAKE_CLAUDE: '1', PRODEV_HANDOFF: 낼곳,
+        PRODEV_PROJECT: PROJECT, MINIDISCORD_DB: DB, PRODEV_NOTIFY_ROOM: String(방번호), ...env },
+    }, e => r({ code: e ? e.code : 0, 낼곳 }))
+      .stdin.end(JSON.stringify({ transcript_path: TRANSCRIPT, trigger: 'auto' }));
+  });
+}
+
+test('pre-compact 알림 — 쿠키 md_session + multipart 로 보낸다. Bearer 도 JSON 도 아니다 (ADR-018)', async () => {
+  const S = await 받아적는서버();
+  const r = await 압축훅({ MINIDISCORD_URL: S.url, PRODEV_NOTIFY_TOKEN: 진짜꼴토큰 });
+  S.srv.close();
+
+  assert.strictEqual(r.code, 0, '알림이 압축을 막지 않는다 (fail-open)');
+  assert.strictEqual(S.받은것.length, 1, `요청이 ${S.받은것.length}건이다`);
+  const q = S.받은것[0];
+
+  assert.strictEqual(q.method, 'POST');
+  assert.match(q.url, /^\/api\/rooms\/\d+\/messages$/);
+  assert.strictEqual(q.cookie, `md_session=${진짜꼴토큰}`, `쿠키가 아니다: ${q.cookie}`);
+  assert.strictEqual(q.auth, '', `Authorization 이 남아 있다: ${q.auth}`);
+  assert.match(q.ctype, /^multipart\/form-data/, `multipart 가 아니다: ${q.ctype}`);
+  assert.ok(!q.ctype.includes('application/json'), 'JSON 으로 보낸다');
+  assert.match(q.body, /name="body"/, 'body 칸이 없다');
+  assert.match(q.body, /정리 중/, '무슨 말인지 안 적혀 있다');
+});
+
+test('pre-compact 알림 — 토큰이 없으면 아무것도 안 보내고 그대로 exit 0', async () => {
+  const S = await 받아적는서버();
+  const r = await 압축훅({ MINIDISCORD_URL: S.url, PRODEV_NOTIFY_TOKEN: '', PRODEV_BOT: '', PRODEV_BOT_DIR: '' });
+  S.srv.close();
+  assert.strictEqual(r.code, 0);
+  assert.strictEqual(S.받은것.length, 0, '토큰 없이 보냈다');
+});
+
+test('pre-compact 알림 — 토큰을 봇 폴더의 .env 에서도 읽는다 (봇 settings 에는 안 둔다)', async () => {
+  const S = await 받아적는서버();
+  const 봇폴더 = tmp('botdir');
+  fs.writeFileSync(path.join(봇폴더, '.env'), `MINIDISCORD_TOKEN=봇것\nPRODEV_NOTIFY_TOKEN="${env토큰}"\n`);
+  const r = await 압축훅({ MINIDISCORD_URL: S.url, PRODEV_NOTIFY_TOKEN: '', PRODEV_BOT_DIR: 봇폴더 });
+  S.srv.close();
+  assert.strictEqual(r.code, 0);
+  assert.strictEqual(S.받은것.length, 1, '.env 의 토큰을 못 읽었다');
+  assert.strictEqual(S.받은것[0].cookie, `md_session=${env토큰}`, '따옴표를 안 벗겼다');
 });

@@ -208,7 +208,7 @@ NFC 정규화 · 조사 떼기(을/를/이/가/은/는/의/에/에서/로/으로
 | 훅 | 사건 | 하는 것 | 실패 |
 |---|---|---|---|
 | session-start | startup·resume·clear·compact | 6.4 의 순서로 `additionalContext` | fail-open (없음·못 읽음·잘림을 말한다) |
-| pre-compact | PreCompact | 인수인계서 · 알림 · timeout 180 | fail-open |
+| pre-compact | PreCompact | 인수인계서 · 알림(알림 계정의 쿠키 `md_session` + multipart, ADR-018) · timeout 180 | fail-open |
 | pre-reply | PreToolUse `mcp__minidiscord-channel__reply` | `chat_id` 없음 → 막음 · 분량(count.js 900자·10줄) → 막음 · 자료 방이면 확정 다섯 조건 → 막음 · 보고 방 발송이면 결재 글 작성자 = charter PL → 막음 · `index.json.errors>0` → 막음 | **exit 2 + 이유 한 줄** (봇이 읽고 고친다) |
 
 pre-reply 의 확정 다섯 조건 (ADR-008): `confirmed_at` 글이 ① `author_type='user'` ② 같은 과제의 `/들이기` 방 ③ 본문 `^(확정|맞다|맞습니다|그대로|OK)\b` ④ `source_msgs` 전부보다 뒤이고 직전 봇 글에 같은 카드 번호 ⑤ 카드 `status: valid`. DB 를 못 열면 자료 방과 보고 방 발송은 fail-closed(확정·결재를 확인할 수 없다). 방 갈래를 DB 로도 rooms.json 으로도 모르면 막지 않는다.
@@ -244,5 +244,6 @@ pre-reply 의 확정 다섯 조건 (ADR-008): `confirmed_at` 글이 ① `author_
 ## 11. 바깥과의 경계
 
 - minidiscord 서버 코드는 손대지 않는다. 설정 한 줄 `MINIDISCORD_BOT_FILES_DIR=<과제 저장소들의 부모>`. 서버 수정이 필요해지면 그 저장소에 카드로 (웹 검색창 · OD-9).
+- 서버에 글을 올리는 길은 하나다: 쿠키 `md_session` + multipart. Bearer 토큰도 JSON 본문도 서버가 받지 않는다 (401 · 406, 2026-09-10 시험 서버로 확인 — ADR-018). cron 두 줄과 훅의 알림은 알림 계정의 세션 쿠키(`PRODEV_NOTIFY_TOKEN`)로 사람과 같은 길로 올린다.
 - knowledge/ (회사 지식)는 crew 의 것을 그대로. `close` 에서 PL 결재로만 승격.
 - 봇 PC 는 인터넷이 된다 (사람 확인). WebSearch·WebFetch 허용.

@@ -99,3 +99,10 @@
 **맥락** T2.2 에서 스킬 본문을 쓰다 설계 문서가 경로를 정해 두지 않은 자리가 둘 나왔다. ① `paper` 는 "절마다 초안 + 절마다 사람 통과"인데(B 표) 통과 전 초안과 통과한 원고가 같은 파일에 섞이면, 사람이 아직 안 본 절이 원고에 들어간다. ② PRD F8 은 "검토 판정 파일이 산출물마다 있다"를 요구하는데 그 파일이 어디 놓이는지는 어디에도 없다.
 **결정** ① 절 작업 자리는 `paper/sections/<절>.md`. 사람이 절 통과를 준 것만 `paper/draft.md` 에 순서대로 모은다 — B 표의 산출 이름(`outline.md` · `draft.md` · 그림)은 그대로고, `sections/` 는 그 아래 작업 자리다. 그림은 `<과제>/tmp/` 에 그려 결재 뒤 `paper/figures/` 로 옮긴다. ② `reviewer` 의 판정은 `<산출물>.review.md` 에 둔다 (`research/수율.md` → `research/수율.md.review.md`). 산출물 옆에 있어야 어느 것에 대한 판정인지 경로만으로 서고, 산출물이 지워질 때 같이 지워진다.
 **재는 것** F8 은 "산출물마다 `.review.md` 가 있다"로 센다. `docs/skill-matrix.md` 의 paper · review 행이 이 경로를 쓴다.
+
+## ADR-018 알림 경로는 사람 계정의 세션 쿠키 + multipart 다
+**상태** 확정 (meta, 2026-09-10, T3.1)
+**맥락** cron 두 줄(08:00 브리핑 · 18:30 일지)과 `pre-compact` 의 "정리 중" 알림을 `Authorization: Bearer` + JSON 으로 적어 두었는데, 시험 서버(포트 3123 · 빈 DB)에 그대로 넣어 보니 안 된다. 서버는 인증을 쿠키 `md_session` 하나로만 받고(`server/src/auth.ts` 의 `requireAuth`), 글 올리기 라우트는 multipart 만 읽는다(`routes-messages.ts` 의 `req.parts()`). 잰 값: JSON+Bearer → **401** · JSON+쿠키 → **406** · multipart+쿠키 → **200**. 설계에 Bearer+JSON 이라 적은 것은 meta 의 잘못이다. 서버는 손대지 않는다 (PRD 6절 · ARCHITECTURE 11절).
+**결정** 부르는 쪽을 고친다. cron 두 줄과 훅의 알림은 `-b "md_session=$PRODEV_NOTIFY_TOKEN"` + multipart 로 보낸다. `-F` 가 아니라 **`--form-string`** 이다 — `-F` 는 `@` 로 시작하는 값을 파일 경로로 읽고, 멘션은 언제나 `@TO(` 로 시작한다 (시험이 이것을 curl 26 으로 잡았다). 토큰의 이름은 `PRODEV_NOTIFY_TOKEN` 하나이고 값은 알림 계정(사람 계정)의 `md_session` 값이다. `MINIDISCORD_URL` 은 그대로 쓴다.
+**봇 문맥에 두지 않는다** `setup.js` 가 만드는 `settings.json` 의 `env` 에 `PRODEV_NOTIFY_TOKEN` 을 넣지 않는다. 훅은 봇 폴더의 `.env` 또는 훅을 띄운 실행 환경에서 읽는다. 사람 계정의 토큰이 봇의 문맥에 실리면 봇이 사람인 척 글을 쓸 수 있다.
+**재는 것** `test/server/setup.test.js` 가 cron 두 줄에 쿠키·`--form-string` 이 있고 `Bearer` 가 없음을 보고, **낸 줄을 그대로 서버에 쏴 200 과 남은 글**을 확인한다. `test/hooks.test.js` 가 모의 서버로 훅이 보낸 요청의 쿠키·multipart 를 확인한다.

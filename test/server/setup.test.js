@@ -12,7 +12,7 @@ const fs = require('fs');
 const os = require('os');
 const net = require('net');
 const path = require('path');
-const { spawn, execFileSync } = require('child_process');
+const { spawn, execFileSync, execSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const MINIDISCORD = path.resolve(ROOT, '..', 'minidiscord');
@@ -54,6 +54,19 @@ function 돌린다(args, env) {
 }
 
 let 로그인쿠키 = '';
+
+// 알림 계정(사람 계정)의 세션 쿠키 값. cron 줄의 $PRODEV_NOTIFY_TOKEN 자리에 들어간다 (ADR-018).
+let 알림토큰 = '';
+async function 알림계정만들기() {
+  const r = await fetch(상태.url + '/api/auth/login', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ username: 'prodev-알림' }),
+  });
+  const sc = r.headers.get('set-cookie') || '';
+  알림토큰 = (/md_session=([^;]+)/.exec(sc) || [, ''])[1];
+  assert.ok(알림토큰, '알림 계정 토큰을 못 받았다');
+}
+
 async function api(method, p, body) {
   const r = await fetch(상태.url + p, {
     method, headers: { 'content-type': 'application/json', cookie: 로그인쿠키 },
@@ -98,6 +111,9 @@ before(async () => {
 
   돌린다([], { PRODEV_PROJECT: 상태.project });
   돌린다(['rooms', 과제], {});
+
+  await 알림계정만들기();
+  await api('POST', '/api/auth/login', { username: 'prodev-test' });   // 로그인쿠키를 시험 계정으로 되돌린다
 });
 
 after(async () => {
@@ -201,6 +217,43 @@ test('setup cron — crontab 두 줄을 stdout 으로만 낸다', () => {
     assert.ok(l.includes(`@TO(${봇})`), '봇을 안 부른다');
   }
   assert.ok(줄[0].includes('브리핑') && 줄[1].includes('일지'));
+
+  // ADR-018 — 서버는 쿠키 md_session 하나로만 인증하고 글 올리기는 multipart 만 받는다.
+  // Bearer + JSON 으로 보내면 401/406 이라 브리핑도 일지도 오지 않는다.
+  for (const l of 줄) {
+    assert.ok(l.includes('-b "md_session=$PRODEV_NOTIFY_TOKEN"'), `쿠키로 안 보낸다: ${l}`);
+    assert.ok(l.includes('--form-string '), `multipart 로 안 보낸다: ${l}`);
+    // -F 였다면 '@TO(' 를 파일 경로로 읽어 curl 이 26 으로 죽는다. 한 번 밟은 자리다.
+    assert.ok(!/(^|\s)-F\s/.test(l), `-F 는 '@' 를 파일로 읽는다: ${l}`);
+    assert.ok(!l.includes('Bearer'), `Bearer 가 남아 있다: ${l}`);
+    assert.ok(!l.includes('application/json'), `JSON 으로 보낸다: ${l}`);
+  }
+});
+
+test('setup cron — 낸 줄을 그대로 서버에 보내면 200 이고 글이 방에 남는다 (ADR-018)', async () => {
+  // 낸 줄을 눈으로 읽고 "되겠지" 하지 않는다. 진짜 서버에 그대로 쏴 본다.
+  const 본방 = (await api('GET', '/api/rooms')).body.active.find(r => r.name === `prodev-${과제}`);
+  assert.ok(본방, '본방이 없다');
+
+  const out = 돌린다(['cron', 과제], {});
+  const 아침 = out.split('\n').find(l => l.trim().startsWith('0 8 ') && l.includes('curl'));
+  assert.ok(아침, '아침 줄이 없다');
+
+  // crontab 줄에서 curl 부터 리디렉션 앞까지를 떼어, 자리표시자와 셸 변수를 실제 값으로 바꾼다
+  const 명령 = 아침.slice(아침.indexOf('curl')).replace(/\s*>\/dev\/null\s*$/, '')
+    .replace('<본방번호>', String(본방.id))
+    .replace('$PRODEV_NOTIFY_TOKEN', 알림토큰);
+
+  const 전 = (await api('GET', `/api/rooms/${본방.id}/messages?after=0`)).body.messages.length;
+  const 답 = execSync(`${명령} -o /dev/null -w '%{http_code}'`, { encoding: 'utf8' }).trim();
+  assert.strictEqual(답, '200', `cron 줄이 ${답} 을 받았다`);
+
+  const 글들 = (await api('GET', `/api/rooms/${본방.id}/messages?after=0`)).body.messages;
+  assert.strictEqual(글들.length, 전 + 1, '글이 안 남았다');
+  const 마지막 = 글들[글들.length - 1];
+  assert.match(마지막.body, /오늘 브리핑/);
+  assert.strictEqual(마지막.author_type, 'user', '알림 계정은 사람 계정이다');
+  console.log(`      cron 글 message_id=${마지막.id} · author=${마지막.author_name}`);
 });
 
 test('setup archive — 방 하나를 보관하면 active 에서 빠지고 archived 로 간다', async () => {

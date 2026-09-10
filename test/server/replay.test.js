@@ -242,3 +242,35 @@ test('대본이 어그러지면 재생 전에 죽는다 — room · author · wa
   await 안된다([{ id: 's1', room: '본방', author: 'PL', text: 'ㄱ', expect: 'x', then: [{ id: 't1', room: '창고', author: 'PL', text: 'ㄴ' }] }], /room/);
   S.srv.close();
 });
+
+test('manual 걸음 — TTY 가 아니면 신호 파일이 생길 때까지 기다린다', async () => {
+  // meta 가 배경에서 재생을 돌리고 사람이 파일 하나를 만들어 "했다" 를 알린다.
+  // 배경에서 Enter 를 기다리면 재생이 영영 멈춘다 — 그래서 TTY 가 아닐 때는 파일을 본다.
+  const S = await 띄운다();
+  const d = 임시폴더();
+  const 대본 = path.join(d, 'm.json'), 기록 = path.join(d, 'm.jsonl');
+  fs.writeFileSync(대본, JSON.stringify({
+    name: '손', project: '시험', steps: [
+      { id: 'm1', manual: '봇 세션에서 /compact 를 친다' },
+      { id: 's1', room: '본방', author: 'PL', text: '압축 뒤 첫 글', wait: 'none' },
+    ],
+  }));
+
+  const 신호 = `${기록}.manual-m1.ok`;
+  const 도는중 = 돌린다(대본, 기록, S.base);
+
+  // 신호를 주기 전에는 다음 걸음이 안 나가야 한다
+  await new Promise(r => setTimeout(r, 2500));
+  assert.equal(S.사람글수(11), 0, '신호도 없이 다음 걸음을 올렸다');
+
+  fs.writeFileSync(신호, '');
+  await 도는중;
+  S.srv.close();
+
+  const r = 줄들(기록);
+  assert.equal(r[0].id, 'm1');
+  assert.equal(r[0].manual, '봇 세션에서 /compact 를 친다');
+  assert.ok(r[0].manual_t, '언제 끝났는지 안 적혔다');
+  assert.equal(r[1].id, 's1', '신호 뒤에 다음 걸음이 돈다');
+  assert.deepEqual(r.at(-1).summary, { steps: 2, timeouts: 0, bot_msgs: 0 });
+});

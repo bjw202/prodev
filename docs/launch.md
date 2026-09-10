@@ -117,63 +117,81 @@ node scripts/replay.js <대본.json> <기록.jsonl> --base http://127.0.0.1:3123
 
 ---
 
-## 7. 확인하다 걸린 것 — 사람이 정해야 하는 자리
+## 7. 알림 경로 — 쿠키 + multipart (ADR-018)
 
-### 7.1 cron 과 훅의 알림이 이 서버에 글을 못 올린다 (막힘)
+08:00 브리핑 · 18:30 일지 · 압축 직전 "정리 중" 은 전부 **알림 계정(사람 계정)** 이 올린다.
+봇 글은 게이트웨이만 보낼 수 있기 때문이다.
 
-`scripts/setup.js cron` 이 내는 crontab 두 줄과 `common/hooks/pre-compact.js` 의 알림은 이렇게 보낸다:
-
-```
--H 'Content-Type: application/json' -H "Authorization: Bearer $TOKEN" -d '{"text":"…"}'
-```
-
-시험 서버에 그대로 넣어 본 결과(2026-09-10):
+서버에 글을 올리는 길은 하나뿐이다 — **쿠키 `md_session` + multipart.**
+2026-09-10 에 시험 서버로 셋 다 넣어 보고 정했다:
 
 | 보낸 꼴 | 결과 |
 |---|---|
 | JSON + `Authorization: Bearer` | **401** `{"error":"로그인이 필요합니다"}` |
 | JSON + 쿠키 `md_session` | **406** `FST_INVALID_MULTIPART_CONTENT_TYPE` |
-| **multipart + 쿠키 `md_session`** | **200** — 글이 올라간다 |
+| **multipart + 쿠키 `md_session`** | **200** — 글이 남는다 |
 
-서버는 인증을 쿠키 `md_session` 하나로만 받고(`server/src/auth.ts` 의 `requireAuth`),
-글 올리기 라우트는 multipart 만 읽는다(`routes-messages.ts` 의 `req.parts()`).
-그래서 지금 꼴로는 **08:00 브리핑도 18:30 일지도 오지 않고**, 압축 직전 "정리 중" 알림도 안 나간다.
-(훅은 fail-open 이라 압축 자체는 되고, 알림만 조용히 빠진다.)
+### 7.1 토큰을 어디에 두나
 
-고칠 자리는 셋 중 하나다 — **어느 쪽인지는 사람·meta 가 정한다:**
+```bash
+# 알림 계정으로 한 번 로그인해 md_session 값을 받는다
+curl -sS -i -X POST http://127.0.0.1:3123/api/auth/login \
+  -H 'content-type: application/json' -d '{"username":"prodev-알림"}' | grep -i set-cookie
+```
 
-| 갈래 | 무엇을 고치나 | 값 |
-|---|---|---|
-| ① 부르는 쪽을 고친다 | cron 줄과 훅의 알림을 `-b "md_session=<토큰>" -F 'body=…'` 로 | prodev 안에서 끝난다. 서버를 안 건드린다 |
-| ② 서버가 Bearer + JSON 을 받게 | minidiscord 서버 수정 | 범위 밖이다 (PRD 6절 · ARCHITECTURE 11절) |
-| ③ 알림을 없앤다 | cron 을 사람이 직접 치는 것으로, "정리 중" 은 안 올림 | S0 의 08:00 · 18:30 이 사라진다 |
+그 값을 **`PRODEV_NOTIFY_TOKEN`** 하나에 둔다. 이름이 하나인 까닭: 두 이름이면 한쪽만 넣었을 때
+다른 쪽이 조용히 건너뛴다.
 
-권하는 것은 ①이다. 서버를 안 건드리고, 확인한 대로 200 이 나온다.
-
-### 7.2 알림 토큰의 환경변수 이름이 두 곳에서 다르다
-
-| 어디 | 이름 |
+| 누가 읽나 | 어디서 읽나 |
 |---|---|
-| `scripts/setup.js` 262~264행 (crontab 줄) | `PRODEV_NOTIFY_TOKEN` |
-| `common/hooks/pre-compact.js` 121행 | `MINIDISCORD_NOTIFY_TOKEN` |
+| cron 두 줄 | crontab 을 띄운 셸의 환경변수 (`crontab -e` 위쪽에 `PRODEV_NOTIFY_TOKEN=…`) |
+| `pre-compact` 훅 | ① 훅을 띄운 실행 환경의 `PRODEV_NOTIFY_TOKEN`, 없으면 ② **봇 폴더의 `.env`** (`bots/<봇>/.env`) |
 
-하나만 넣으면 다른 쪽이 조용히 건너뛴다. 7.1 을 고칠 때 이름도 하나로 맞춰야 한다.
+**봇 설정(`settings.json`)의 `env` 에는 넣지 않는다.** 사람 계정의 토큰이 봇 문맥에 실리면
+봇이 사람인 척 글을 쓸 수 있다. `setup.js` 도 넣지 않는다.
 
-> 7.1 · 7.2 는 **훅과 스크립트**의 자리라 이 세션이 손대지 않았다 (1단계 관문을 통과한 산출물이다).
-> meta 의 지시를 받아 고친다.
+봇 폴더 `.env` 에 둘 때:
+```
+PRODEV_NOTIFY_TOKEN=<알림 계정의 md_session 값>
+```
+
+### 7.2 `-F` 가 아니라 `--form-string`
+
+`curl -F 'body=@TO(…) 오늘 브리핑'` 은 **깨진다.** `-F` 는 `@` 로 시작하는 값을 파일 경로로 읽어
+`curl: (26) Failed to open/read local data` 로 죽는다. 멘션은 언제나 `@TO(` 로 시작한다.
+그래서 `--form-string` 을 쓴다. `--form-string` 은 `@` 도 `<` 도 해석하지 않는다.
+
+시험이 이 자리를 지킨다 (`test/server/setup.test.js`): cron 두 줄에 `--form-string` 이 있고
+`-F` 와 `Bearer` 가 없음을 보고, **낸 줄을 그대로 서버에 쏴 200 과 남은 글**을 확인한다.
 
 ---
 
-## 8. 사람 손이 필요한 자리 (목록)
+## 8. 사람 손이 필요한 자리
 
 | # | 사람이 하는 것 | 자동으로 안 되는 까닭 |
 |---|---|---|
 | 1 | 시험 서버를 띄운다 (1절) | 이 세션은 사람 PC 의 프로세스를 오래 붙잡지 않는다 |
-| 2 | 브라우저로 계정 셋을 만든다 (2절) | 이름 로그인이라 사람이 한 번 들어와야 자연스럽다 (API 로도 되지만 사람 계정임을 사람이 확인해야 한다) |
+| 2 | 브라우저로 계정 셋을 만든다 (2절) | 이름 로그인이라 사람이 한 번 들어와야 자연스럽다 |
 | 3 | `setup.js` 를 돌린다 (3절) | 봇 토큰이 생기고 `.env` 에 적힌다. 사람이 값을 봐야 한다 |
 | 4 | **봇을 켠다** (4절) | `claude` 세션은 사람이 띄운다. 승인이 뜨면 사람이 누른다 |
 | 5 | 본방에 `@TO … 안녕` 을 올려 확인한다 (5절) | T3.1 의 끝 조건이다 |
-| 6 | 토큰 둘을 `REPLAY_TOKEN_*` 에 넣는다 (6절) | 사람 계정의 세션 토큰이다 |
-| 7 | **7.1 을 어느 갈래로 고칠지 정한다** | 설계 결정이다. 이 세션이 혼자 정하지 않는다 |
+| 6 | 토큰 셋을 넘긴다 (6·7절) | PL · 과제원 토큰은 meta 의 재생용, 알림 토큰은 훅·cron 용이다 |
 | 8 | `MINIDISCORD_BOT_FILES_DIR` 을 어디로 할지 정한다 | 과제 저장소들의 부모여야 한다. 자리는 사람이 정한다 |
-| 9 | cron 두 줄을 crontab 에 붙인다 (7.1 을 고친 뒤) | PL PC 의 crontab 이다 |
+
+정해져서 빠진 둘:
+
+- **7 (알림 경로를 어느 갈래로 고칠까)** — meta 가 ① 부르는 쪽 고치기로 정했다 (ADR-018). 고침은 끝났다.
+- **9 (crontab 에 두 줄 붙이기)** — 3단계 시험에서는 붙이지 않는다. cron 글은 **대본에 있고 replay 가 대신 올린다.**
+  실제 운영에 들어갈 때 붙인다.
+
+## 9. 재생은 meta 가 돌린다
+
+대본과 정답지는 meta 에 있다. prodev 가 내놓는 것은 `scripts/replay.js` 와 **켜진 봇** 둘뿐이다.
+사람이 4·5 까지 끝내고 토큰 둘(`REPLAY_TOKEN_PL` · `REPLAY_TOKEN_MEMBER`)을 meta 에 주면 meta 가 R1 부터 돈다.
+
+`manual` 걸음(사람이 봇 세션에서 `/compact` 를 치는 것 같은 자리)은 두 길로 기다린다:
+
+| 어디서 도나 | 어떻게 알리나 |
+|---|---|
+| 사람 앞(터미널, stdin 이 TTY) | 화면에 할 일이 뜨고 Enter 를 누른다 |
+| 배경(meta 가 돌림) | `<기록.jsonl>.manual-<걸음 id>.ok` 파일을 만든다. 재생이 2초마다 본다 |

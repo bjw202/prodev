@@ -3,7 +3,7 @@
 //
 //   node scripts/setup.js [--project <과제폴더>]   설치: 봇 폴더 · settings(훅 배선 · env 셋) · .env · .mcp.json
 //   node scripts/setup.js rooms <과제>             방 일곱을 만들고 봇을 일곱 다 참여시킨다 (API)
-//   node scripts/setup.js cron                     crontab 두 줄을 낸다 (08:00 브리핑 · 18:30 일지)
+//   node scripts/setup.js cron                     crontab 두 줄을 낸다 (08:00 브리핑 · 18:30 일지, 쿠키 + multipart — ADR-018)
 //   node scripts/setup.js archive <방>             방 하나를 보관한다
 //
 // crew 의 setup.js 에서 왔다. 다른 점 셋:
@@ -259,9 +259,11 @@ function cron(과제) {
   const 본방 = `prodev-${이름}`;
   console.log('crontab -e 에 아래 두 줄을 붙인다 (PL PC). 방 번호는 setup.js rooms 출력에서 본다.');
   console.log(`# prodev ${이름} — 08:00 브리핑 · 18:30 일지`);
-  console.log(`0 8 * * 1-5 curl -sS -X POST ${URL_}/api/rooms/<본방번호>/messages -H 'Content-Type: application/json' -H "Authorization: Bearer $PRODEV_NOTIFY_TOKEN" -d '{"text":"@TO(${봇}) 오늘 브리핑"}' >/dev/null`);
-  console.log(`30 18 * * 1-5 curl -sS -X POST ${URL_}/api/rooms/<본방번호>/messages -H 'Content-Type: application/json' -H "Authorization: Bearer $PRODEV_NOTIFY_TOKEN" -d '{"text":"@TO(${봇}) 오늘 일지"}' >/dev/null`);
-  console.log(`\n본방: ${본방} · 알림 계정 토큰은 PRODEV_NOTIFY_TOKEN 에 둔다 (봇 글은 게이트웨이만 보낼 수 있다).`);
+  console.log(`0 8 * * 1-5 curl -sS -X POST ${URL_}/api/rooms/<본방번호>/messages -b "md_session=$PRODEV_NOTIFY_TOKEN" --form-string 'body=@TO(${봇}) 오늘 브리핑' >/dev/null`);
+  console.log(`30 18 * * 1-5 curl -sS -X POST ${URL_}/api/rooms/<본방번호>/messages -b "md_session=$PRODEV_NOTIFY_TOKEN" --form-string 'body=@TO(${봇}) 오늘 일지' >/dev/null`);
+  console.log(`\n본방: ${본방} · 알림 계정의 세션 쿠키 값을 PRODEV_NOTIFY_TOKEN 에 둔다 (봇 글은 게이트웨이만 보낼 수 있다).`);
+  console.log('서버는 쿠키 md_session 하나로만 인증하고 글 올리기는 multipart 만 받는다 (ADR-018).');
+  console.log("-F 가 아니라 --form-string 이다 — -F 는 '@' 로 시작하는 값을 파일 경로로 읽고, 멘션은 언제나 @TO( 로 시작한다.");
 }
 
 // ── 보관 ──────────────────────────────────────────────────
