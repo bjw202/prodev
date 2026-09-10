@@ -5,7 +5,8 @@
 //
 // 하는 일 (ARCHITECTURE 5 의 0층 · 6.1 들이기):
 //   1 inbox/<날짜>-<slug>/ 를 만든다
-//   2 파일을 그대로 베낀다. 이름이 이미 있으면 .v2 · .v3 … 로 늘린다 (덮어쓰지 않는다)
+//   2 파일을 베낀다. 서버 저장명(`<uuid>-<원래이름>`)이면 uuid 를 벗겨 원래 이름으로 둔다.
+//     이름이 이미 있으면 .v2 · .v3 … 로 늘린다 (덮어쓰지 않는다)
 //   3 SHA-256 을 잰다
 //   4 files.md(사이드카) 에 파일마다 한 절을 더한다 — 열·행·SHA-256 은 채우고, 뜻과 단위는 비워 둔다
 //
@@ -50,6 +51,21 @@ function sha256(file) {
 function today() {
   const d = new Date();
   return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// 서버가 저장한 이름에서 원래 이름을 되찾는다.
+//
+// minidiscord 는 첨부를 `${randomUUID()}-${원래이름}` 으로 쌓는다 (server routes-messages.ts).
+// 그 이름을 그대로 inbox 에 들이면 같은 파일을 다시 올려도 앞에 붙은 uuid 가 달라
+// **.v2 규칙이 걸리지 않는다** — 같은 파일이 이름만 다른 채 둘이 된다 (T3.M R2 에서 실제로 그랬다).
+//
+// 앞머리가 uuid 꼴일 때만 벗긴다. 사람이 손으로 놓은 파일 이름은 건드리지 않는다.
+const UUID앞머리 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-/i;
+function 원래이름(src) {
+  const base = path.basename(src);
+  const 벗긴것 = base.replace(UUID앞머리, '');
+  // 벗기고 나서 빈 이름이 되면 벗기지 않는다 (uuid 뿐인 파일)
+  return 벗긴것 ? 벗긴것 : base;
 }
 
 // 이름이 이미 있으면 .v2 · .v3 … 로. 확장자 앞에 붙여야 무슨 파일인지 그대로 보인다.
@@ -126,12 +142,13 @@ function intake(slug, files, opt) {
       done.push({ src, error: `허용 뿌리 밖이다 (${뿌리.join(' · ')})` });
       continue;
     }
-    const name = freeName(dir, path.basename(src));
+    const 본이름 = 원래이름(src);            // 서버 저장명이면 uuid 를 벗긴 이름
+    const name = freeName(dir, 본이름);
     const dest = path.join(dir, name);
     fs.copyFileSync(src, dest);
     fs.chmodSync(dest, 0o444);                 // 0층은 불변이다. 실수로 고치지 못하게 잠근다
     const hash = sha256(dest);
-    const 앞판 = name === path.basename(src) ? null : sha256(path.join(dir, path.basename(src)));
+    const 앞판 = name === 본이름 ? null : sha256(path.join(dir, 본이름));
     const p = look(dest);
     fs.appendFileSync(side, section(name, p, hash, 앞판));
     done.push({ src, name, path: path.relative(root, dest).split(path.sep).join('/'), sha256: hash, 판: /\.v\d+\./.test(name) });

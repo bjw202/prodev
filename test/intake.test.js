@@ -124,3 +124,66 @@ test('intake — 들인 원본은 잠긴다 (0층 불변)', () => {
   const f = path.join(proj, 'inbox', '20260825-yield-by-lot', 'sample.csv');
   assert.strictEqual(fs.statSync(f).mode & 0o222, 0, '쓰기 권한이 남아 있다');
 });
+
+// ── 서버 저장명 (T3.M R2 발견 4) ──────────────────────────
+// minidiscord 는 첨부를 `<uuid>-<원래이름>` 으로 쌓는다 (server routes-messages.ts).
+// 그 이름을 그대로 들이면 같은 파일을 다시 올려도 uuid 가 달라 .v2 규칙이 안 걸린다.
+
+function 들인다(proj, slug, ...files) {
+  const env = { ...process.env };
+  delete env.PRODEV_INTAKE_ROOTS;
+  delete env.MINIDISCORD_BOT_FILES_DIR;
+  const out = execFileSync(process.execPath, [INTAKE, slug, ...files, '--project', proj, '--date', '20260910', '--json'],
+    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], env });
+  return JSON.parse(out);
+}
+function 놓는다(dir, name, body) {
+  fs.mkdirSync(dir, { recursive: true });
+  const p = path.join(dir, name);
+  fs.writeFileSync(p, body);
+  return p;
+}
+
+test('서버 저장명 — uuid 를 벗겨 원래 이름으로 들이고, 다시 오면 .v2 가 된다', () => {
+  const proj = project();
+  const 업로드 = path.join(proj, '..', `uploads-${Date.now()}`);
+  const 첫판 = 놓는다(업로드, '3f2504e0-4f89-11d3-9a0c-0305e82c3301-part_incoming_inspection.csv', 'a,b\n1,2\n');
+  const 둘째판 = 놓는다(업로드, 'a1b2c3d4-1111-2222-3333-444455556666-part_incoming_inspection.csv', 'a,b\n1,3\n');
+
+  const r1 = 들인다(proj, '부품입고', 첫판);
+  assert.strictEqual(r1.files[0].name, 'part_incoming_inspection.csv', 'uuid 를 안 벗겼다');
+  assert.strictEqual(r1.files[0].판, false);
+
+  // uuid 는 다르지만 원래 이름이 같다 — 같은 파일의 새 판으로 봐야 한다
+  const r2 = 들인다(proj, '부품입고', 둘째판);
+  assert.strictEqual(r2.files[0].name, 'part_incoming_inspection.v2.csv', '.v2 가 안 걸렸다');
+  assert.strictEqual(r2.files[0].판, true);
+
+  const 남은것 = fs.readdirSync(path.join(proj, 'inbox', '20260910-부품입고')).sort();
+  assert.ok(남은것.includes('part_incoming_inspection.csv'), '앞 판이 사라졌다 (0층은 불변)');
+  assert.ok(남은것.includes('part_incoming_inspection.v2.csv'));
+});
+
+test('사람이 손으로 놓은 이름은 건드리지 않는다', () => {
+  const proj = project();
+  const 자리 = path.join(proj, '..', `손-${Date.now()}`);
+  const f = 놓는다(자리, '2026-09-수율-메모.csv', 'a\n1\n');
+  const r = 들인다(proj, '메모', f);
+  assert.strictEqual(r.files[0].name, '2026-09-수율-메모.csv', '이름을 건드렸다');
+});
+
+test('uuid 처럼 생겼지만 uuid 가 아닌 앞머리는 벗기지 않는다', () => {
+  const proj = project();
+  const 자리 = path.join(proj, '..', `닮은꼴-${Date.now()}`);
+  // 토막이 넷뿐 · 길이가 틀림 · 16진수가 아닌 글자 — 셋 다 uuid 가 아니다
+  const 닮은것 = [
+    '3f2504e0-4f89-11d3-9a0c-report.csv',                       // 토막 넷
+    '3f2504e0-4f89-11d3-9a0c-0305e82c33-report.csv',            // 마지막 토막이 짧다
+    '3f2504e0-4f89-11d3-9a0c-0305e82c330z-report.csv',          // z 는 16진수가 아니다
+  ];
+  for (const 이름 of 닮은것) {
+    const f = 놓는다(자리, 이름, 'a\n1\n');
+    const r = 들인다(proj, `닮은-${닮은것.indexOf(이름)}`, f);
+    assert.strictEqual(r.files[0].name, 이름, `벗기면 안 되는 이름을 벗겼다: ${이름}`);
+  }
+});
