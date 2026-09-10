@@ -19,10 +19,7 @@ description: 과제나 갈래를 마감한다. "이 과제 끝났어"·"마감�
 
 ### 1. 남은 것을 확인한다
 
-닫기 전에 훑는다:
-```
-node scripts/index.js                    색인을 다시 만든다
-```
+닫기 전에 `index.json` 과 파일을 훑는다 (색인은 이미 카드가 바뀔 때마다 다시 만들어져 있다):
 - `status: draft` 인 카드가 있나 — 확정 못 받고 남은 것
 - `bots/<봇>/threads/*` 에 열린 실이 있나 — 답을 못 받은 물음
 - `schedule.md` 에 `진행` 인데 기한이 지난 줄이 있나
@@ -68,7 +65,7 @@ node scripts/setup.js archive <방>       갈래마다, 또는 과제 방 일곱
 
 ## 부르는 것
 
-`scripts/setup.js archive` · `scripts/index.js` · `git`. 에이전트는 부르지 않는다.
+`scripts/setup.js archive` · `git`. 에이전트는 부르지 않는다.
 
 ## 다시 불렸을 때
 
