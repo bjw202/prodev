@@ -15,13 +15,40 @@ const path = require('path');
 const { spawn, execFileSync, execSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..', '..');
-const MINIDISCORD = path.resolve(ROOT, '..', 'minidiscord');
-const SETUP = path.join(ROOT, 'scripts', 'setup.js');
+// 저장소 사본에서 이 시험을 돌릴 수 있어야 한다 (실제 bots/ 를 만지지 않으려고 사본에서 돈다).
+// 사본에는 형제 폴더 minidiscord 가 없으므로 MINIDISCORD_DIR 로 실제 자리를 준다.
+const MINIDISCORD = process.env.MINIDISCORD_DIR || path.resolve(ROOT, '..', 'minidiscord');
+
+// setup.js 는 **자기 저장소의 bots/ 아래**에 봇 폴더를 만든다 (setup.js 의 PRODEV = scripts/.. ).
+// 그래서 실제 저장소에서 돌리면 사람이 쓰는 봇 폴더를 덮어쓰고, 뒤처리하다 토큰까지 지운다.
+// 2026-09-10 에 실제로 그렇게 날렸다. 그 뒤로 시험은 **저장소 사본**에서만 setup 을 돌린다.
+//
+// 사본에는 setup.js 가 읽는 scripts/ 와 common/ 만 옮긴다. bots/ 는 옮길 목록에 아예 없다.
+// **작업 트리**에서 옮긴다 — 지금 고치는 중인 setup.js 를 재야 한다.
+// git 에 기대지 않는다: 이 시험 자체가 저장소 사본(.git 이 없는 자리)에서 돌 수 있어야 한다.
+function 저장소사본() {
+  const 사본 = fs.mkdtempSync(path.join(os.tmpdir(), 'prodev-repo-'));
+  // setup.js 가 읽는 것은 이 둘뿐이다: scripts/ (자기 자신) 과 common/ (settings 틀 · 훅 · statusline).
+  // 통째로 옮기지 않는다 — bots/ 를 옮길 일이 아예 없어야 한다.
+  for (const d of ['scripts', 'common']) 통째로베낀다(path.join(ROOT, d), path.join(사본, d));
+  return 사본;
+}
+
+function 통째로베낀다(부터, 까지) {
+  fs.mkdirSync(까지, { recursive: true });
+  for (const e of fs.readdirSync(부터, { withFileTypes: true })) {
+    const a = path.join(부터, e.name), b = path.join(까지, e.name);
+    if (e.isDirectory()) 통째로베낀다(a, b);
+    else if (e.isFile()) { fs.copyFileSync(a, b); fs.chmodSync(b, fs.statSync(a).mode & 0o777); }
+  }
+}
 const 과제 = '시험과제';
 const 갈래 = ['들이기', '자료', '리서치', '특허', '논문', '보고'];
 const 봇 = `prodev-${과제}-비서`;
 
-const 상태 = { child: null, port: 0, dataDir: null, project: null, botDir: null, url: '' };
+const 상태 = { child: null, port: 0, dataDir: null, project: null, botDir: null, url: '', repo: null };
+// 시험을 시작할 때의 실제 bots/ 목록. 맨 끝 시험이 이것과 견준다.
+const 처음bots = (() => { try { return fs.readdirSync(path.join(ROOT, 'bots')).sort(); } catch { return []; } })();
 
 function 빈포트() {
   return new Promise((resolve, reject) => {
@@ -47,9 +74,11 @@ async function 뜰때까지(url, child, 최대 = 60000) {
 }
 
 function 돌린다(args, env) {
-  return execFileSync(process.execPath, [SETUP, ...args], {
-    encoding: 'utf8', cwd: ROOT, timeout: 120000, stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env, MINIDISCORD_URL: 상태.url, MINIDISCORD_DIR: MINIDISCORD, ...env },
+  const 사본 = (env && env.__repo) || 상태.repo;
+  const { __repo, ...나머지 } = env || {};
+  return execFileSync(process.execPath, [path.join(사본, 'scripts', 'setup.js'), ...args], {
+    encoding: 'utf8', cwd: 사본, timeout: 120000, stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, MINIDISCORD_URL: 상태.url, MINIDISCORD_DIR: MINIDISCORD, ...나머지 },
   });
 }
 
@@ -87,7 +116,8 @@ before(async () => {
   // 과제 폴더 이름이 곧 과제 이름이다 (setup.js 가 basename 으로 읽는다)
   상태.project = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'prodev-proj-')), 과제);
   fs.mkdirSync(상태.project, { recursive: true });
-  상태.botDir = path.join(ROOT, 'bots', 봇);
+  상태.repo = 저장소사본();
+  상태.botDir = path.join(상태.repo, 'bots', 봇);   // 실제 저장소가 아니라 사본이다
 
   console.log(`  임시 서버: ${상태.url} · DB 폴더 ${상태.dataDir}`);
   상태.child = spawn('npx', ['tsx', 'server/src/index.ts'], {
@@ -123,7 +153,8 @@ after(async () => {
     if (상태.child.exitCode === null) 상태.child.kill('SIGKILL');
   }
   console.log(`  서버 내렸다 (포트 ${상태.port})`);
-  for (const d of [상태.dataDir, 상태.botDir]) {
+  // 전부 임시 폴더다. 실제 저장소의 bots/ 는 이 파일 어디에서도 지우지 않는다.
+  for (const d of [상태.dataDir, 상태.repo]) {
     try { fs.rmSync(d, { recursive: true, force: true }); } catch {}
   }
 });
@@ -238,10 +269,12 @@ test('setup settings — 파일 뿌리가 과제 폴더의 부모일 때도 deny
   const 과제이름 = '되돌이시험';
   const 과제폴더 = path.join(뿌리, 'projects', 과제이름);
   fs.mkdirSync(과제폴더, { recursive: true });
-  const 봇폴더 = path.join(ROOT, 'bots', `prodev-${과제이름}-비서`);
+  const 사본 = 저장소사본();
+  const 봇폴더 = path.join(사본, 'bots', `prodev-${과제이름}-비서`);   // 사본 아래다
 
   try {
     돌린다([], {
+      __repo: 사본,
       PRODEV_PROJECT: 과제폴더,
       MINIDISCORD_BOT_FILES_DIR: path.join(뿌리, 'projects'),
       MINIDISCORD_DB: path.join(뿌리, 'mddata', 'minidiscord.db'),
@@ -261,7 +294,7 @@ test('setup settings — 파일 뿌리가 과제 폴더의 부모일 때도 deny
     assert.ok(s.permissions.deny.some(d => d.includes(서버업로드.replace(/^\//, ''))),
       '서버 업로드 폴더까지 열어 버렸다');
   } finally {
-    fs.rmSync(봇폴더, { recursive: true, force: true });
+    fs.rmSync(사본, { recursive: true, force: true });
     fs.rmSync(뿌리, { recursive: true, force: true });
   }
 });
@@ -325,4 +358,13 @@ test('setup archive — 방 하나를 보관하면 active 에서 빠지고 archi
   assert.ok(!r.body.active.some(x => x.name === 방), 'active 에 그대로 있다');
   assert.ok(r.body.archived.some(x => x.name === 방), 'archived 에 없다');
   assert.strictEqual(r.body.active.length, 6);
+});
+
+// 이 파일의 마지막 시험이다. 앞의 시험들이 실제 저장소를 만졌는지 여기서 본다.
+test('시험은 실제 bots/ 를 만지지 않는다 (시험 전후 목록이 같다)', () => {
+  // 2026-09-10 에 setup.js 를 실제 저장소에서 돌려 사람이 쓰던 봇 폴더를 덮어쓰고,
+  // 뒤처리한다며 지워 토큰까지 날렸다. 그 사고를 다시는 못 내게 하는 못이다.
+  const 지금bots = (() => { try { return fs.readdirSync(path.join(ROOT, 'bots')).sort(); } catch { return []; } })();
+  assert.deepStrictEqual(지금bots, 처음bots,
+    `시험이 실제 bots/ 를 바꿨다 — 전: [${처음bots}] 후: [${지금bots}]`);
 });
