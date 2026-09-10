@@ -1,7 +1,7 @@
 # fixtures — meta 가 prodev 1단계에 주는 시험 자료 (2026-09-10)
 
 만든 스크립트는 meta 세션의 임시 폴더에 있었고 여기엔 결과만 있다. 다시 만들 일이 있으면 이 README 의 규격대로 만든다.
-**prodev 에 주는 법**: 이 폴더를 통째로 `prodev/test/fixtures/` 로 복사한다. 여기 있는 것은 전부 "입력과 기대"이고 3단계 정답지(대본 채점표)는 아직 없다.
+**prodev 에 주는 법**: `find/` · `hooks/` · `chat/` · 이 README 를 `prodev/test/fixtures/` 로 복사한다 (1단계에서 복사됨, 관문에서 동일 확인). **`triggers.json` 은 T2.M 정답지라 주지 않는다.** 3단계 정답지(대본 채점표)는 `../scripts/` 에 따로 둔다.
 
 ## find/ — index.js · find.js 시험 (T1.3)
 | 무엇 | 내용 |
@@ -29,6 +29,7 @@
 | `handoff-compact-expected.md` | pre-compact 결과의 6칸에 들어 있어야 하는 것과 금지 |
 
 환경변수 약속: `MINIDISCORD_DB=<fixture.db>` · `PRODEV_PROJECT=<project 폴더>` · `PRODEV_FAKE_CLAUDE=1`(pre-compact 가 `claude -p` 대신 고정 출력을 쓰게).
+**2026-09-10 고침(R2 재생에서 발견)**: 확정 글 #3 · #10 과 "네" #7 의 본문을 실제 사람 글처럼 `@TO(봇) 확정` · `@TO(봇) 네` 로 바꿨다. 사람 글은 언제나 봉투(@TO)로 시작하므로 훅은 봉투를 벗긴 뒤 확정 어휘를 봐야 한다 (ADR-008 규칙 ③ 보충). 옛 fixture 는 봉투 없는 "확정" 이라 이 결함을 못 잡았다 — meta 의 자료 결함.
 결재 검사의 표식은 보고 방 글의 `결재 #<id>` 이고, 그 글의 작성자가 charter 의 PL 과 같아야 통과다 (#5 는 PL, #6 은 과제원).
 
 ## chat/ — chat.js 시험 (T1.2)

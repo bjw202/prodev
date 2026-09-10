@@ -7,7 +7,7 @@
 // 보는 차례는 ARCHITECTURE 8절 표 그대로다. 앞의 것이 걸리면 뒤는 보지 않는다:
 //   1 chat_id 없음
 //   2 분량 — count.js 로 센다 (900자 · 10줄)
-//   3 자료 방이면 확정 다섯 조건 (ADR-008)
+//   3 자료 방이면 확정 다섯 조건 (ADR-008. 어휘는 봉투를 벗긴 본문의 맨 앞에서 본다)
 //   4 보고 방 발송이면 결재 글 작성자 = charter 의 PL
 //   5 index.json 의 errors > 0
 //
@@ -22,6 +22,10 @@ const P = require('./places.js');
 
 const 상한 = { 자: 900, 줄: 10 };
 const 확정어휘 = /^(확정|맞다|맞습니다|그대로|OK)(?![가-힣A-Za-z0-9])/;
+// 사람 글은 언제나 봉투로 시작한다 — "@TO(비서) 확정". 어휘를 보기 전에 봉투를 벗긴다.
+// 안 벗기면 확정이 영영 안 된다 (R2 재생 들이기 #19 에서 실제로 막혔다. ADR-008 보충).
+const 봉투 = /^(\s*@(?:TO|CC)\([^)]*\)\s*)+/;
+const 봉투벗기기 = 글 => String(글 == null ? '' : 글).trim().replace(봉투, '').trim();
 const 카드번호 = /\b([ERDN]-\d{4})\b/;
 
 function 막는다(이유) {
@@ -93,9 +97,10 @@ function 확정검사(카드id, 과제이름) {
   if (갈래 !== '들이기' || P.roomParts(방.name).과제 !== 과제이름) {
     return `${카드id} 의 확정 글 #${확정번호} 이 ${과제이름}/들이기 방이 아니다 (${방 ? 방.name : '방 모름'})`;
   }
-  // ③
-  if (!확정어휘.test(String(글.body).trim())) {
-    return `${카드id} 의 확정 글 #${확정번호} 이 확정 어휘로 시작하지 않는다 ("${String(글.body).trim().slice(0, 20)}")`;
+  // ③ 봉투를 벗긴 본문의 맨 앞이 확정 어휘여야 한다
+  const 알맹이 = 봉투벗기기(글.body);
+  if (!확정어휘.test(알맹이)) {
+    return `${카드id} 의 확정 글 #${확정번호} 이 확정 어휘로 시작하지 않는다 ("${알맹이.slice(0, 20)}")`;
   }
   // ④
   const 출처 = [].concat(머리말.source_msgs || []).map(Number).filter(Number.isFinite);
