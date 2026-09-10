@@ -185,5 +185,5 @@
 
 | 커밋 | 무엇 |
 |---|---|
-| `DOCS_COMMIT` | 설계 문서 (PRD · ARCHITECTURE · ADR-022 · TASKS · VERIFICATION · README · docs 넷) |
+| `ffb47ae` | 설계 문서 (PRD · ARCHITECTURE · ADR-022 · TASKS · VERIFICATION · README · docs 넷) |
 | (뒤에 채움) | 코드 · 스킬 · 시험 — meta 가 "문서 PR 통과"를 보낸 뒤 |
