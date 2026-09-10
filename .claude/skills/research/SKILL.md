@@ -59,6 +59,8 @@ node scripts/find.js <말> --limit 10
 검토: 통과 | 불통과 | 검증 불가
 경로: research/<주제>.md
 ```
+**`research/<주제>.md` 와 `.review.md` 를 방에 첨부한다.** 경로는 그 옆에 적는다.
+경로만 주면 사람이 파일을 열러 가야 하고, 대개 열지 않는다 (ADR-020).
 
 대화가 몇 턴 오간 뒤, 사람이 "그걸로 하자"고 하면 **카드 R** 로 굳힌다:
 `node scripts/index.js next R` → `cards/R-0003.md` → 위키 갱신 → `node scripts/index.js` →
