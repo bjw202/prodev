@@ -2,7 +2,7 @@
 
 minidiscord 채팅방에서 PL 과 과제원의 공정개발 과제를 **비서 봇 하나**가 잇는다. 발의 · 자료 정리(2nd brain) · 리서치 · 일정 · 특허 · 논문 · 보고까지 한 자리에서. 세션이 꺼지거나 압축돼도 파일에서 되살아난다.
 
-이 폴더는 2026-09-10 에 문서로 먼저 세웠다. 코드는 아직 없다.
+이 폴더는 2026-09-10 에 문서로 먼저 세웠다. 지금은 1단계(뼈대와 부품)를 만드는 중이다.
 
 ## 읽는 순서
 
@@ -24,6 +24,31 @@ minidiscord 채팅방에서 PL 과 과제원의 공정개발 과제를 **비서 
 | **meta** (`../meta/`) | 예측을 먼저 적고 검수한다. 고칠 때는 관문 사이에만 worktree + PR 로. 본 체크아웃은 손대지 않는다 |
 | `../minidiscord/` | 채팅 서버. 여기서 고치지 않는다. 설정 한 줄만 |
 | `../crew/` | 앞선 실험. 부품(count.js · 훅 · settings · retro-cost)을 가져온다 |
+
+## 돌리는 법
+
+```
+npm test              서버 없이 도는 시험 (스크립트 · 훅)
+npm run test:server   임시 minidiscord 서버를 띄우는 시험 (setup.js)
+```
+
+## 있어야 하는 것
+
+| 무엇 | 판 | 없으면 |
+|---|---|---|
+| node | ≥ 22 (`node:sqlite` · `node --test`) | 안 돈다 |
+| python3 | 3.9+ | peek 의 xlsx 와 plot.py 만 안 된다 |
+
+python 꾸러미는 **있으면 쓰고 없으면 그 부분만 건너뛴다**. 스크립트는 죽지 않고 "못 읽었다: <까닭>" 한 줄을 낸다.
+
+| 꾸러미 · 도구 | 쓰는 곳 | 없을 때 | 들이는 법 |
+|---|---|---|---|
+| `openpyxl` | `peek.js` 의 xlsx | "못 읽었다: openpyxl 이 없다" | `pip install openpyxl` |
+| `matplotlib` | `plot.py` | "못 그렸다: matplotlib 이 없다" | `pip install matplotlib` |
+| `pdfplumber` | `peek.js` 의 pdf 글·표 | `pdftotext` 로 넘어간다 | `pip install pdfplumber` |
+| `pdftotext` (poppler) | pdfplumber 가 없을 때의 pdf 글 | 쪽 수만 낸다 | `brew install poppler` |
+
+csv · tsv · jpg · png 와 pdf 쪽 수는 node 가 직접 읽는다. 도우미가 하나도 없어도 이것들은 된다.
 
 ## 한 줄 규칙 셋
 - 세는 것과 막는 것은 기계, 정하는 것은 지침.

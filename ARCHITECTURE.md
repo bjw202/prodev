@@ -151,7 +151,7 @@ supersedes: none
 2 cards/*.md 본문                          → 카드 경로 + 행
 3 wiki/*.md                                → 페이지 + 행
 4 inbox/*/files.md                         → 사이드카 경로 + 행
-5 chat.js search (AND)                     → #message_id (여러 건, 최근 것부터, ≤10)
+5 chat.js search (AND)                     → #message_id (최근 10건을 골라 오래된 순으로)
 ```
 NFC 정규화 · 조사 떼기(을/를/이/가/은/는/의/에/에서/로/으로/와/과/도) · 대소문자·하이픈·공백 접기 · void 는 supersedes 따라감. 답한 층을 `bots/<이름>/find.log` 에 남긴다 (읽힘 지표).
 
