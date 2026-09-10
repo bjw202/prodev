@@ -66,7 +66,7 @@ function 띄운다(project = '시험') {
     srv, 글들, base: `http://127.0.0.1:${srv.address().port}`,
     // 가짜 봇 — 사람 글이 그 방에 오면 봇 계정으로 답을 넣는다
     봇이답한다: (room_id, text) => {
-      글들.push({ id: ++다음, room_id, author_type: 'bot', author_name: 'prodev-시험-비서', body: text,
+      글들.push({ id: ++다음, room_id, author_type: 'bot', author_name: 'prodev-시험-bot', body: text,
         attachments: [], created_at: new Date().toISOString() });
     },
     사람글수: room_id => 글들.filter(g => g.room_id === room_id && g.author_type === 'user').length,
@@ -101,10 +101,10 @@ test('걸음 셋 — wait bot · expect then/else · 상한 1초 무응답 이 �
   const 대본 = path.join(d, 'r.json'), 기록 = path.join(d, 'r.jsonl');
   fs.writeFileSync(대본, JSON.stringify({
     name: 'R-시험', project: '시험',
-    actors: { PL: '김피엘', member: '김과제' }, bot: 'prodev-시험-비서',
+    actors: { PL: '김피엘', member: '김과제' }, bot: 'prodev-시험-bot',
     steps: [
       // s1 봇이 답한다 → expect 에 걸려 then 으로
-      { id: 's1', room: 'files', author: 'member', text: '@TO(prodev-시험-비서) 자료입니다', wait: 'bot', timeout_s: 20,
+      { id: 's1', room: 'files', author: 'member', text: '@TO(prodev-시험-bot) 자료입니다', wait: 'bot', timeout_s: 20,
         expect: '확정',
         then: [{ id: 's1a', room: 'files', author: 'member', text: '확정', wait: 'none' }],
         else: [{ id: 's1b', room: 'files', author: 'member', text: '여기는 안 와야 한다', wait: 'none' }] },

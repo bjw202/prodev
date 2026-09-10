@@ -11,7 +11,7 @@
 
 ```
 ① 시험 서버 (다른 포트 · 빈 DB · 봇 첨부 뿌리)      사람
-② 계정 셋 (PL · 과제원 · 알림)                      사람
+② 계정 둘 (PL · 과제원)                             사람  ← 알림 계정은 setup 이 만든다
 ③ 봇 등록 · 설정 · 방 둘        node scripts/setup.js          사람이 돌린다
 ④ 봇 기동                       cd bots/<봇> && claude …        사람
 ⑤ 확인                          본방에 @TO 하나                 사람
@@ -50,7 +50,7 @@ MINIDISCORD_BOT_FILES_DIR=<과제 저장소들의 부모> \
 |---|---|---|
 | PL (예: `김피엘`) | 발의 · 결재 · 보고 | 브라우저로 접속해 이름을 넣는다 |
 | 과제원 (예: `김과제`) | 자료 올리기 · 문답 · 확정 | 〃 |
-| `prodev-알림` | 훅이 "정리 중" 을 올릴 때 · cron 이 부를 때 | 〃 (**4절의 주의를 보라**) |
+| `prodev-notify` | 훅이 "정리 중" 을 올릴 때 · cron 이 부를 때 | **사람이 안 만들어도 된다** — `setup.js` 가 이 이름으로 한 번 로그인해 계정을 만들고 세션 쿠키를 `.env` 에 넣는다 (ADR-024) |
 
 토큰이 필요하면 (T3.2 재생용):
 ```bash
@@ -75,7 +75,7 @@ node scripts/setup.js rooms 시험
 
 `--project` 에는 **이름만** 주면 된다 (ADR-023). 그러면 `$MINIDISCORD_BOT_FILES_DIR/<이름>` 에 과제 폴더를 만들고 하위 열과 `git init` 까지 한다 — 폴더를 미리 만들 필요가 없다. 파일 뿌리 밖에 두고 싶으면 그때만 **경로**를 준다 (`/` 가 들어 있으면 경로로 본다). 있는 폴더에 다시 돌려도 안의 것은 건드리지 않는다.
 
-`setup.js` 가 만드는 것: 과제 폴더와 하위 열 · `git` · `bots/prodev-<과제>-비서/` 아래 `.env`(토큰) · `.claude/settings.json`(훅 셋 배선 · env 셋 · 허용 목록) · `.mcp.json` · `rooms.json`.
+`setup.js` 가 만드는 것: 과제 폴더와 하위 열 · `git` · `bots/prodev-<과제>-bot/` 아래 `.env`(토큰) · `.claude/settings.json`(훅 셋 배선 · env 셋 · 허용 목록) · `.mcp.json` · `rooms.json`.
 방 둘은 `prodev-<과제>` (본방) 와 `prodev-<과제>/files` 다 (ADR-022).
 사람에게 한 줄로 알린다: **"말은 아무 데서나, 파일은 files 에."**
 
@@ -84,7 +84,7 @@ node scripts/setup.js rooms 시험
 ## 4. 봇 기동 — cwd · 옵션 조합 (여기가 이 문서의 핵심)
 
 ```bash
-cd <루트>/prodev/bots/prodev-<과제>-비서        # ← cwd 는 봇 폴더다
+cd <루트>/prodev/bots/prodev-<과제>-bot        # ← cwd 는 봇 폴더다
 claude \
   --setting-sources project,local \
   --strict-mcp-config \
@@ -105,7 +105,7 @@ claude \
 
 ## 5. 확인 (T3.1 끝 조건)
 
-1. 본방에 사람 계정으로 `@TO(prodev-<과제>-비서) 안녕` 을 올린다.
+1. 본방에 사람 계정으로 `@TO(prodev-<과제>-bot) 안녕` 을 올린다.
 2. 봇이 그 방에 답한다.
 3. 봇 세션에 스킬 열셋과 에이전트 여섯이 보인다.
 
@@ -136,13 +136,20 @@ node scripts/replay.js <대본.json> <기록.jsonl> --base http://127.0.0.1:3123
 
 ### 7.1 토큰을 어디에 두나
 
+**`setup.js` 가 알아서 넣는다** (ADR-024). `setup.js --project …` 이 서버가 떠 있으면
+`prodev-notify` 로 한 번 로그인해 — 이름 하나면 계정이 없을 때 생긴다 — 받은 `md_session` 값을
+`bots/<봇>/.env` 의 `PRODEV_NOTIFY_TOKEN=` 에 써 준다. **이미 값이 있으면 덮지 않는다.**
+서버가 꺼져 있으면 건너뛰고 "서버를 켜고 다시 돌리면 받는다" 고 말한다.
+
+`.env` 에는 그 값이 무엇인지 한 줄 풀이가 함께 적힌다 — 사람이 파일을 열었을 때 모를 값이 없어야 한다.
+
+손으로 넣어야 할 때(서버를 못 켜는 자리 등)만 이렇게 꺼낸다:
 ```bash
-# 알림 계정으로 한 번 로그인해 md_session 값을 받는다
 curl -sS -i -X POST http://127.0.0.1:3123/api/auth/login \
-  -H 'content-type: application/json' -d '{"username":"prodev-알림"}' | grep -i set-cookie
+  -H 'content-type: application/json' -d '{"username":"prodev-notify"}' | grep -i set-cookie
 ```
 
-그 값을 **`PRODEV_NOTIFY_TOKEN`** 하나에 둔다. 이름이 하나인 까닭: 두 이름이면 한쪽만 넣었을 때
+이름을 **`PRODEV_NOTIFY_TOKEN`** 하나로 둔 까닭: 두 이름이면 한쪽만 넣었을 때
 다른 쪽이 조용히 건너뛴다.
 
 | 누가 읽나 | 어디서 읽나 |
@@ -178,7 +185,7 @@ PRODEV_NOTIFY_TOKEN=<알림 계정의 md_session 값>
 | 3 | `setup.js` 를 돌린다 (3절) | 봇 토큰이 생기고 `.env` 에 적힌다. 사람이 값을 봐야 한다 |
 | 4 | **봇을 켠다** (4절) | `claude` 세션은 사람이 띄운다. 승인이 뜨면 사람이 누른다 |
 | 5 | 본방에 `@TO … 안녕` 을 올려 확인한다 (5절) | T3.1 의 끝 조건이다 |
-| 6 | 토큰 셋을 넘긴다 (6·7절) | PL · 과제원 토큰은 meta 의 재생용, 알림 토큰은 훅·cron 용이다 |
+| 6 | 토큰 **둘**을 넘긴다 (6절) | PL · 과제원 토큰은 meta 의 재생용이다. **알림 토큰은 `setup.js` 가 받아 넣으므로 사람 걸음이 아니다** (ADR-024) |
 | 8 | `MINIDISCORD_BOT_FILES_DIR` 을 어디로 할지 정한다 | 과제 저장소들의 부모여야 한다. 자리는 사람이 정한다 |
 
 정해져서 빠진 둘:
@@ -314,21 +321,14 @@ MINIDISCORD_BOT_FILES_DIR=<루트>/projects \
 |---|---|---|
 | PL 이름 | 결재·발의·보고 | 아니오 (브라우저로 쓴다) |
 | 과제원 이름들 | 자료·문답·확정 | 아니오 |
-| `prodev-알림` | 훅과 cron 이 방에 글을 올릴 때 | **예** — 아래 |
-
-알림 토큰 꺼내기:
-```bash
-curl -sS -i -X POST http://127.0.0.1:3000/api/auth/login \
-  -H 'content-type: application/json' -d '{"username":"prodev-알림"}' | grep -i set-cookie
-# set-cookie: md_session=<이 값>; Path=/; HttpOnly; SameSite=Lax
-```
+| `prodev-notify` | 훅과 cron 이 방에 글을 올릴 때 | **사람이 안 만든다** — `setup.js` 가 만들고 토큰까지 넣는다 (ADR-024) |
 
 넣는 자리 **둘**. 이름은 `PRODEV_NOTIFY_TOKEN` 하나다 (ADR-018):
 
-| 어디 | 무엇이 읽나 |
-|---|---|
-| `prodev/bots/<봇>/.env` 에 `PRODEV_NOTIFY_TOKEN=<값>` | 훅 둘 (압축 직전·직후 알림) |
-| crontab 위쪽에 `PRODEV_NOTIFY_TOKEN=<값>` | cron 두 줄 (08:00 브리핑 · 18:30 일지) |
+| 어디 | 무엇이 읽나 | 누가 넣나 |
+|---|---|---|
+| `prodev/bots/<봇>/.env` 에 `PRODEV_NOTIFY_TOKEN=<값>` | 훅 둘 (압축 직전·직후 알림) | **`setup.js`** (ADR-024) |
+| crontab 위쪽에 `PRODEV_NOTIFY_TOKEN=<값>` | cron 두 줄 (08:00 브리핑 · 18:30 일지) | 사람 — `.env` 의 값을 그대로 옮긴다 |
 
 **봇 설정(`settings.json`)의 `env` 에는 넣지 않는다.** 사람 계정의 토큰이 봇 문맥에 실리면
 봇이 사람인 척 글을 쓸 수 있다. `setup.js` 도 넣지 않는다.
@@ -357,14 +357,14 @@ crontab -e                             # 그 두 줄을 붙인다
 |---|---|---|
 | 1 | `cd prodev && npm install` · `cd ../minidiscord && npm install && npm run build -w channel` | `ls minidiscord/channel/dist/index.js` |
 | 2 | **저장소 사본에서** `npm test` | `pass 94 · fail 0` |
-| 3 | 사본에서 `MINIDISCORD_DIR=<실제> npm run test:server` | `pass 23 · fail 0` |
+| 3 | 사본에서 `MINIDISCORD_DIR=<실제> npm run test:server` | `pass 25 · fail 0` |
 | 4 | 서버를 띄운다 (10.5) | `curl -sS http://127.0.0.1:3000/api/health` → `{"ok":true}` |
 | 5 | 브라우저로 계정 셋을 만든다 (10.6) | 방 화면이 보인다 |
 | 6 | `node scripts/setup.js --project <과제>` | `<루트>/projects/<과제>` 와 그 `.git` 이 생김 · 출력 ④ 에 "명령 N/N 풀림" · 못 찾은 명령 0 · `bots/<봇>/.mcp.json` 이 생김 |
 | 7 | `node scripts/setup.js rooms <과제>` | 방 둘 · `rooms.json` |
-| 8 | 알림 토큰을 `.env` 에 넣는다 (10.6) | |
+| 8 | (없어졌다 — `setup.js` 가 알림 토큰을 넣는다, ADR-024) | |
 | 9 | 봇을 켠다 (4절 그대로) | 세션에 스킬 열셋과 에이전트 여섯이 보인다 |
-| 10 | 본방에 `@TO(prodev-<과제>-비서) 안녕` | 봇이 그 방에 답한다 |
+| 10 | 본방에 `@TO(prodev-<과제>-bot) 안녕` | 봇이 그 방에 답한다 |
 | 11 | 봇 세션에서 `/compact` 한 번 | 본방에 **글 둘**: "문맥을 정리 중입니다" → (압축) → "정리가 끝났습니다. 이어서 하려면 말을 걸어 주세요" |
 | 12 | cron 두 줄을 붙인다 (10.7) | 다음 날 08:00 브리핑 |
 
