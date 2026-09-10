@@ -210,7 +210,7 @@ PRODEV_NOTIFY_TOKEN=<알림 계정의 md_session 값>
 |---|---|
 | `prodev/` (이 저장소) | 부품 · 훅 · 스킬 · 에이전트 |
 | `minidiscord/` | 서버와 채널 플러그인 |
-| **과제 저장소들** (`projects/<과제>/`) | 헌장 · 카드 · 위키 · 일지. **일한 것이 전부 여기 있다** |
+| **과제 저장소들** (`<루트>/projects/<과제>/`) | 헌장 · 카드 · 위키 · 일지. **일한 것이 전부 여기 있다**. 이 경로는 **예시다** — 자리는 사람이 회사에서 정한다. 어디로 정하든 `MINIDISCORD_BOT_FILES_DIR` 은 **그 부모**여야 한다 (10.5) |
 | `knowledge/` | 회사 지식 (있으면) |
 
 **가져가지 않아도 되는 것:**
@@ -277,14 +277,29 @@ sqlite3 <DATA_DIR>/minidiscord.db "SELECT name, token FROM bots;"
 
 ```bash
 cd <루트>/minidiscord
-MINIDISCORD_PORT=3000 MINIDISCORD_DATA_DIR=<루트>/minidiscord/server/data MINIDISCORD_BOT_FILES_DIR=<루트>/projects   npx tsx server/src/index.ts
+MINIDISCORD_PORT=3000 \
+MINIDISCORD_DATA_DIR=<루트>/minidiscord/server/data \
+MINIDISCORD_BOT_FILES_DIR=<루트>/projects \
+  npx tsx server/src/index.ts
 ```
+포트 `3000` 과 경로 `<루트>/projects` 는 **예시다.** 회사에서 값이 정해지면 이 절의 예시를
+실제 값으로 바꿔 두면 다음 사람이 그대로 쓸 수 있다.
 
 | 값 | 실전에서 무엇으로 | 왜 |
 |---|---|---|
-| `MINIDISCORD_PORT` | 3000 (기본) | 과제원이 사내망 브라우저로 붙는 자리 |
+| `MINIDISCORD_PORT` | 기본 3000. **회사 기계에서 그 포트를 이미 쓰면 사람이 정한다** | 과제원이 사내망 브라우저로 붙는 자리 |
 | `MINIDISCORD_DATA_DIR` | 실전 전용 폴더 | DB 와 업로드가 여기 쌓인다. **시험 DB 를 재사용하지 않는다** |
-| `MINIDISCORD_BOT_FILES_DIR` | **과제 저장소들의 부모** (`<루트>/projects`) | 봇 첨부의 뿌리다. 이 밖의 경로를 첨부하면 서버가 **조용히** 뺀다. 과제 폴더가 그 안에 있어야 한다 (ADR-019) |
+| `MINIDISCORD_BOT_FILES_DIR` | **과제 저장소들의 부모** | 봇 첨부의 뿌리다. 이 밖의 경로를 첨부하면 서버가 **조용히** 뺀다. 과제 폴더가 그 안에 있어야 한다 (ADR-019). 10.1 에서 과제 자리를 어디로 정하든 여기는 그 부모다 |
+
+**포트를 바꾸면 세 자리가 같아야 한다.** 하나만 어긋나면 조용히 안 된다:
+
+| 어디 | 무엇을 |
+|---|---|
+| 서버를 띄울 때 | `MINIDISCORD_PORT=<포트>` |
+| `setup.js` 를 돌릴 때 | `MINIDISCORD_URL=http://127.0.0.1:<포트>` — 이 값이 봇 `settings.json` 의 `env` 와 `.mcp.json` 의 서버 주소로 들어간다 |
+| cron 두 줄 | `setup.js cron` 이 위의 `MINIDISCORD_URL` 로 줄을 만든다. **setup 을 옳은 포트로 돌린 뒤에** 그 출력을 붙인다 |
+
+어긋났을 때 보이는 것: 봇은 뜨는데 방에 답이 없다(`.mcp.json` 이 딴 데를 본다) · 압축 알림이 `.log` 에 `못 보냄` 으로 남는다 · cron 시각에 브리핑이 안 온다.
 
 서버는 사람이 껐다 켜는 것이므로, 실전에서는 부팅 때 자동으로 뜨게 하거나 켜는 절차를 사람이 정한다.
 
