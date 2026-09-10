@@ -30,7 +30,7 @@ const readline = require('readline');
 
 const 폴링 = 2000;              // meta 규격: 폴링 2초
 const 기본상한 = 300;           // 초
-const 갈래 = ['본방', '들이기', '자료', '리서치', '특허', '논문', '보고'];
+const 갈래 = ['본방', 'files'];   // 과제 하나 = 방 둘 (ADR-022). 대본의 room 은 이 둘 중 하나다.
 
 function 죽는다(말) { process.stderr.write(말 + '\n'); process.exit(1); }
 const 잠깐 = ms => new Promise(r => setTimeout(r, ms));

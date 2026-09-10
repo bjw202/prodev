@@ -43,7 +43,8 @@ function 통째로베낀다(부터, 까지) {
   }
 }
 const 과제 = '시험과제';
-const 갈래 = ['들이기', '자료', '리서치', '특허', '논문', '보고'];
+// 갈래 이름은 한 자리(places.js)에서 온다. 여기서 다시 적으면 언젠가 갈린다.
+const { 갈래 } = require('../../scripts/setup.js');
 const 봇 = `prodev-${과제}-비서`;
 
 const 상태 = { child: null, port: 0, dataDir: null, project: null, botDir: null, url: '', repo: null };
@@ -159,18 +160,19 @@ after(async () => {
   }
 });
 
-test('setup rooms — GET /api/rooms 에 방이 일곱이다', async () => {
+test('setup rooms — GET /api/rooms 에 방이 둘이다 (본방 · files, ADR-022)', async () => {
   const r = await api('GET', '/api/rooms');
   assert.strictEqual(r.status, 200);
   const 이름 = r.body.active.map(x => x.name).sort();
   const 기대 = [`prodev-${과제}`, ...갈래.map(g => `prodev-${과제}/${g}`)].sort();
-  assert.strictEqual(이름.length, 7, `방이 ${이름.length}개다: ${이름.join(', ')}`);
+  assert.strictEqual(이름.length, 2, `방이 ${이름.length}개다: ${이름.join(', ')}`);
   assert.deepStrictEqual(이름, 기대);
+  assert.deepStrictEqual(갈래, ['files'], '갈래는 files 하나다');
 });
 
-test('setup rooms — 일곱 방 전부에 봇이 참여했다', async () => {
+test('setup rooms — 방 둘 다에 봇이 참여했다', async () => {
   const rooms = (await api('GET', '/api/rooms')).body.active;
-  assert.strictEqual(rooms.length, 7);
+  assert.strictEqual(rooms.length, 2);
   for (const room of rooms) {
     const r = await api('GET', `/api/rooms/${room.id}/bots`);
     assert.strictEqual(r.status, 200);
@@ -187,24 +189,30 @@ test('setup rooms — 다시 돌려도 방이 늘지 않는다 (있으면 그대
   assert.deepStrictEqual(후, 전, '방이 새로 생겼다');
 });
 
-test('setup — bots/<이름>/rooms.json 에 방 일곱이 id·name 으로 있다', () => {
+test('setup — bots/<이름>/rooms.json 에 방 둘이 id·name 으로 있다', () => {
   const j = JSON.parse(fs.readFileSync(path.join(상태.botDir, 'rooms.json'), 'utf8'));
   assert.strictEqual(j.과제, 과제);
-  assert.strictEqual(j.rooms.length, 7);
+  assert.strictEqual(j.rooms.length, 2);
   for (const r of j.rooms) {
     assert.ok(Number.isInteger(r.id) && r.id > 0, `id 가 이상하다: ${JSON.stringify(r)}`);
     assert.ok(typeof r.name === 'string' && r.name.startsWith(`prodev-${과제}`));
   }
-  // places.js 가 읽는 꼴 그대로여야 훅이 DB 없이도 방 갈래를 안다
+  // places.js 가 읽는 꼴 그대로여야 훅이 DB 없이도 방을 안다
   const P = require('../../common/hooks/places.js');
-  const 자료 = j.rooms.find(r => r.name.endsWith('/자료'));
+  const 파일방 = j.rooms.find(r => r.name.endsWith('/files'));
+  assert.ok(파일방, 'rooms.json 에 files 방이 없다');
   process.env.PRODEV_BOT_DIR = 상태.botDir;
   process.env.MINIDISCORD_DB = path.join(상태.dataDir, '없다.db');
-  const 찾음 = P.roomName(자료.id);
+  const 찾음 = P.roomName(파일방.id);
   assert.ok(찾음, 'places.js 가 rooms.json 에서 방을 못 찾았다');
-  assert.strictEqual(찾음.name, 자료.name);
+  assert.strictEqual(찾음.name, 파일방.name);
   assert.strictEqual(찾음.출처, 'rooms.json');
-  assert.strictEqual(P.roomParts(찾음.name).갈래, '자료');
+  assert.strictEqual(P.roomParts(찾음.name).갈래, P.파일방);
+
+  // 본방은 접미어가 없다
+  const 본방 = j.rooms.find(r => r.name === `prodev-${과제}`);
+  assert.ok(본방, 'rooms.json 에 본방이 없다');
+  assert.strictEqual(P.roomParts(본방.name).갈래, null);
 });
 
 test('setup — bots/<이름>/.claude/settings.json 에 훅 셋과 env 셋이 있다', () => {
@@ -359,14 +367,14 @@ test('setup cron — 낸 줄을 그대로 서버에 보내면 200 이고 글이 
 });
 
 test('setup archive — 방 하나를 보관하면 active 에서 빠지고 archived 로 간다', async () => {
-  const 방 = `prodev-${과제}/특허`;
+  const 방 = `prodev-${과제}/files`;
   const out = 돌린다(['archive', 방], {});
   assert.match(out, /보관/);
 
   const r = await api('GET', '/api/rooms');
   assert.ok(!r.body.active.some(x => x.name === 방), 'active 에 그대로 있다');
   assert.ok(r.body.archived.some(x => x.name === 방), 'archived 에 없다');
-  assert.strictEqual(r.body.active.length, 6);
+  assert.strictEqual(r.body.active.length, 1, '본방만 남아야 한다');
 });
 
 // 이 파일의 마지막 시험이다. 앞의 시험들이 실제 저장소를 만졌는지 여기서 본다.
