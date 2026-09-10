@@ -330,7 +330,7 @@ function 압축훅(env, 방번호 = 7) {
       env: { ...process.env, PRODEV_FAKE_CLAUDE: '1', PRODEV_HANDOFF: 낼곳,
         PRODEV_PROJECT: PROJECT, MINIDISCORD_DB: DB, PRODEV_NOTIFY_ROOM: String(방번호), ...env },
     }, e => r({ code: e ? e.code : 0, 낼곳 }))
-      .stdin.end(JSON.stringify({ transcript_path: TRANSCRIPT, trigger: 'auto' }));
+      .stdin.end(JSON.stringify({ transcript_path: (env && env.__기록없음) ? '/없는/기록.jsonl' : TRANSCRIPT, trigger: 'auto' }));
   });
 }
 
@@ -389,7 +389,8 @@ test('pre-compact 알림 — 방 번호를 rooms.json 의 본방에서 찾는다
     ],
   }));
 
-  const r = await 압축훅({ MINIDISCORD_URL: S.url, PRODEV_NOTIFY_TOKEN: '', PRODEV_NOTIFY_ROOM: '', PRODEV_BOT_DIR: 봇폴더 });
+  // 기록을 못 읽게 해 인수인계서에 chat_id 가 안 생기게 한다 → rooms.json 까지 내려간다
+  const r = await 압축훅({ __기록없음: '1', MINIDISCORD_URL: S.url, PRODEV_NOTIFY_TOKEN: '', PRODEV_NOTIFY_ROOM: '', PRODEV_BOT_DIR: 봇폴더 });
   S.srv.close();
 
   assert.strictEqual(r.code, 0);
@@ -422,8 +423,79 @@ test('pre-compact 알림 — rooms.json 에 본방이 없으면 아무 데도 �
   fs.writeFileSync(path.join(봇폴더, 'rooms.json'), JSON.stringify({
     과제: '시험', rooms: [{ id: 42, name: 'prodev-시험/들이기', last_seen_id: 0 }],
   }));
-  const r = await 압축훅({ MINIDISCORD_URL: S.url, PRODEV_NOTIFY_TOKEN: '', PRODEV_NOTIFY_ROOM: '', PRODEV_BOT_DIR: 봇폴더 });
+  const r = await 압축훅({ __기록없음: '1', MINIDISCORD_URL: S.url, PRODEV_NOTIFY_TOKEN: '', PRODEV_NOTIFY_ROOM: '', PRODEV_BOT_DIR: 봇폴더 });
   S.srv.close();
   assert.strictEqual(r.code, 0, '알림이 압축을 막지 않는다');
   assert.strictEqual(S.받은것.length, 0, '본방이 없는데 어딘가로 보냈다');
+});
+
+test('pre-compact 알림 — 인수인계서의 첫 chat_id 가 rooms.json 본방보다 먼저다', async () => {
+  // 하던 방이 있으면 거기가 맞다. 사람이 그 방에서 기다리고 있다.
+  const S = await 받아적는서버();
+  const 봇폴더 = tmp('하던방');
+  fs.writeFileSync(path.join(봇폴더, '.env'), `PRODEV_NOTIFY_TOKEN=${진짜꼴토큰}\n`);
+  fs.writeFileSync(path.join(봇폴더, 'rooms.json'), JSON.stringify({
+    과제: '시험', rooms: [{ id: 41, name: 'prodev-시험', last_seen_id: 0 }],
+  }));
+  // 기록이 있으니 인수인계서가 채워지고, 그 안에 chat_id 2 (들이기) 가 있다
+  const r = await 압축훅({ MINIDISCORD_URL: S.url, PRODEV_NOTIFY_TOKEN: '', PRODEV_NOTIFY_ROOM: '', PRODEV_BOT_DIR: 봇폴더 });
+  S.srv.close();
+  assert.strictEqual(r.code, 0);
+  assert.strictEqual(S.받은것[0].url, '/api/rooms/2/messages', '하던 방이 아니라 본방으로 갔다');
+});
+
+// ── 압축 직후 알림 (session-start, ADR-018 보충) ──────────
+
+function 시작훅(env, source) {
+  const 낼곳 = path.join(tmp('직후'), 'handoff-compact.md');
+  return new Promise(r => {
+    execFile(process.execPath, [path.join(HOOKS, 'session-start.js')], {
+      encoding: 'utf8',
+      env: { ...process.env, PRODEV_HANDOFF: 낼곳, PRODEV_PROJECT: PROJECT, MINIDISCORD_DB: DB, ...env },
+    }, (e, out) => r({ code: e ? e.code : 0, out, 낼곳 }))
+      .stdin.end(JSON.stringify({ source }));
+  });
+}
+
+test('session-start — 압축 직후에는 방에 "정리가 끝났습니다" 한 줄을 올린다', async () => {
+  // 압축 뒤에는 사람이 말을 걸어야 봇이 이어서 한다. 사람이 그 시점을 알아야 한다.
+  const S = await 받아적는서버();
+  const 봇폴더 = tmp('직후봇');
+  fs.writeFileSync(path.join(봇폴더, '.env'), `PRODEV_NOTIFY_TOKEN=${진짜꼴토큰}\n`);
+  fs.writeFileSync(path.join(봇폴더, 'rooms.json'), JSON.stringify({
+    과제: '시험', rooms: [{ id: 41, name: 'prodev-시험', last_seen_id: 0 }, { id: 42, name: 'prodev-시험/들이기', last_seen_id: 0 }],
+  }));
+
+  const r = await 시작훅({ MINIDISCORD_URL: S.url, PRODEV_BOT_DIR: 봇폴더 }, 'compact');
+  S.srv.close();
+
+  assert.strictEqual(r.code, 0, 'session-start 는 세션을 막지 않는다');
+  assert.strictEqual(S.받은것.length, 1, `요청이 ${S.받은것.length}건이다`);
+  const q = S.받은것[0];
+  assert.strictEqual(q.url, '/api/rooms/41/messages', `본방이 아닌 데로 갔다: ${q.url}`);
+  assert.strictEqual(q.cookie, `md_session=${진짜꼴토큰}`);
+  assert.match(q.ctype, /^multipart\/form-data/);
+  assert.match(q.body, /정리가 끝났습니다/);
+  assert.match(q.body, /말을 걸어/);
+
+  // 알림이 문맥 출력을 건드리지 않는다
+  const 문맥 = JSON.parse(r.out).hookSpecificOutput.additionalContext;
+  assert.ok(문맥.length > 0, 'additionalContext 가 비었다');
+  assert.ok(!문맥.includes('정리가 끝났습니다'), '알림 문장이 문맥에 샜다');
+});
+
+test('session-start — 껐다 켠 경우(startup·resume·clear)에는 안 올린다', async () => {
+  // 서버가 놓친 글을 재배달하니 사람이 따로 할 일이 없다 (R5 두 번 확인).
+  const 봇폴더 = tmp('켬');
+  fs.writeFileSync(path.join(봇폴더, '.env'), `PRODEV_NOTIFY_TOKEN=${진짜꼴토큰}\n`);
+  fs.writeFileSync(path.join(봇폴더, 'rooms.json'), JSON.stringify({
+    과제: '시험', rooms: [{ id: 41, name: 'prodev-시험', last_seen_id: 0 }],
+  }));
+  for (const source of ['startup', 'resume', 'clear']) {
+    const S = await 받아적는서버();
+    const r = await 시작훅({ MINIDISCORD_URL: S.url, PRODEV_BOT_DIR: 봇폴더 }, source);
+    S.srv.close();
+    assert.strictEqual(r.code, 0);
+    assert.strictEqual(S.받은것.length, 0, `${source} 에서 알림이 나갔다`);
+  }
 });

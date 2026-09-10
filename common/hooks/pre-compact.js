@@ -7,7 +7,7 @@
 //   기록 꼬리(마지막 40턴 · tool_result 300자 · thinking 제외)
 //     → claude -p --model sonnet (빈 cwd · PRODEV_HOOK=1 · timeout 180)
 //     → <봇 폴더>/handoff-compact.md 여섯 칸
-//     → 방에 "정리 중" 한 줄 (알림 계정: 쿠키 md_session + multipart — ADR-018)
+//     → 방에 "정리 중" 한 줄 (알림 계정. 보내는 꼴과 방 찾기는 places.js — ADR-018)
 //
 // 무슨 일이 있어도 **exit 0** 이다 (fail-open). 압축은 우리가 멈출 수 있는 것이 아니고,
 // 인수인계서를 못 쓴 채 압축되는 것이 압축을 막는 것보다 낫다. 못 쓴 까닭은 파일에 적는다.
@@ -116,64 +116,6 @@ function 요약받기(물음) {
 
 // ── 알림 ──────────────────────────────────────────────────
 
-// 방에 "정리 중" 한 줄. 서버가 없거나 토큰이 없으면 조용히 건너뛴다 — 알림 때문에 압축을 붙잡지 않는다.
-//
-// 보내는 꼴은 사람이 브라우저로 올릴 때와 같다 (ADR-018): 쿠키 md_session + multipart.
-// 서버는 Authorization: Bearer 를 아예 읽지 않고(401), 글 올리기 라우트는 multipart 만 읽는다(406).
-// 2026-09-10 에 시험 서버로 셋 다 넣어 보고 정한 꼴이다.
-// -F 가 아니라 --form-string 이다: -F 는 '@' 로 시작하는 값을 파일 경로로 읽는다.
-// 이 글은 '@' 로 시작하지 않지만, cron 줄(@TO…)과 같은 꼴을 쓰는 편이 나중에 베껴 쓸 때 안전하다.
-//
-// 토큰은 알림 계정(사람 계정)의 세션 쿠키 값이고 env PRODEV_NOTIFY_TOKEN 하나에서 온다.
-// 봇 설정(settings.json)의 env 에는 넣지 않는다 — 봇 문맥에 사람 계정의 토큰을 두지 않으려는 것이다.
-// 훅은 봇 폴더의 .env 또는 훅을 띄운 실행 환경에서 읽는다.
-function 알린다(방번호) {
-  const base = process.env.MINIDISCORD_URL;
-  const token = process.env.PRODEV_NOTIFY_TOKEN || 봇폴더토큰();
-  if (!base || !token || !방번호) return '건너뜀 (서버나 알림 계정이 없다)';
-  try {
-    execFileSync('curl', ['-sS', '-X', 'POST', `${base.replace(/\/$/, '')}/api/rooms/${방번호}/messages`,
-      '-b', `md_session=${token}`,
-      '--max-time', '10',
-      '--form-string', 'body=문맥을 정리 중입니다. 곧 이어서 합니다.'], { stdio: 'ignore' });
-    return '보냄';
-  } catch (e) {
-    return `못 보냄 (${String(e.message).split('\n')[0]})`;
-  }
-}
-
-// 어느 방에 알리나. 봉투의 chat_id → env → rooms.json 의 본방 차례로 본다.
-//
-// PreCompact 입력에는 chat_id 가 없다 (압축은 방에서 오는 일이 아니다). setup.js 도 env 에
-// 방 번호를 넣지 않는다 — 설치할 때는 방이 아직 없고, 방은 `setup.js rooms` 가 나중에 만든다.
-// 그래서 앞의 둘이 비면 알림이 조용히 건너뛰었다 (T3.M · R5 재측정에서 두 번 걸렸다).
-//
-// rooms.json 을 읽는 것이 순서에 기대지 않는 길이다. 그 파일은 방 이름표이고(ADR-021),
-// 본방은 이름에 갈래(`/…`)가 없는 방 하나다.
-function 본방번호() {
-  try {
-    const 봇 = P.botDir();
-    if (!봇) return null;
-    const j = JSON.parse(fs.readFileSync(path.join(봇, 'rooms.json'), 'utf8'));
-    const 본방 = (j.rooms || []).find(r => r && r.name && P.roomParts(r.name).갈래 === null);
-    return 본방 && 본방.id != null ? String(본방.id) : null;
-  } catch { return null; }
-}
-
-// 봇 폴더의 .env 에서 PRODEV_NOTIFY_TOKEN 을 읽는다. 없으면 null — 알림은 건너뛴다.
-function 봇폴더토큰() {
-  try {
-    const 봇 = P.botDir();
-    if (!봇) return null;
-    const 줄들 = fs.readFileSync(path.join(봇, '.env'), 'utf8').split('\n');
-    for (const l of 줄들) {
-      const m = /^\s*PRODEV_NOTIFY_TOKEN\s*=\s*(.*)$/.exec(l);
-      if (m) return m[1].trim().replace(/^["']|["']$/g, '') || null;
-    }
-  } catch {}
-  return null;
-}
-
 // ── 몸통 ──────────────────────────────────────────────────
 
 function main() {
@@ -218,8 +160,8 @@ function main() {
 
   try { fs.writeFileSync(낼곳, 본문); } catch {}
 
-  const 방번호 = 들어온것.chat_id || process.env.PRODEV_NOTIFY_ROOM || 본방번호();
-  const 알림 = 알린다(방번호);
+  // 방·토큰·보내는 꼴은 places.js 한 자리에 있다 (session-start 의 압축 직후 알림과 같아야 한다).
+  const 알림 = P.알린다('문맥을 정리 중입니다. 곧 이어서 합니다.', P.알릴방(들어온것.chat_id));
   try { fs.appendFileSync(`${낼곳}.log`, `${결과.때}\t${결과.까닭 || 'ok'}\t알림:${알림}\n`); } catch {}
 
   process.exit(0);
