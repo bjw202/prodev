@@ -7,14 +7,10 @@
       "Agent",
       "WebSearch",
       "WebFetch",
-      "Edit({{ROOMS}}/*/{{BOT}}/**)",
-      "Write({{ROOMS}}/*/{{BOT}}/**)",
-      "Edit({{CREW}}/bots/{{BOT}}/**)",
-      "Write({{CREW}}/bots/{{BOT}}/**)",
-      "Write({{CREW}}/proposals/**)",
-      "Edit({{CREW}}/proposals/**)",
-      "Edit({{KNOWLEDGE}}/**)",
-      "Write({{KNOWLEDGE}}/**)",
+      "Edit({{PROJECT}}/**)",
+      "Write({{PROJECT}}/**)",
+      "Edit({{BOT}}/**)",
+      "Write({{BOT}}/**)",
       "Bash(git:*)",
       "Bash(gh:*)",
       "Bash(grep:*)",
@@ -33,26 +29,53 @@
       "Bash(awk:*)",
       "Bash(date:*)",
       "Bash(python3:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(chmod:*)",
+      "Bash(shasum:*)",
+      "Bash(sha256sum:*)",
+      "Bash(file:*)",
+      "Bash(stat:*)",
+      "Bash(pwd)",
+      "Bash(echo:*)",
+      "Bash(cd:*)",
+      "Bash(tr:*)",
+      "Bash(cut:*)",
+      "Bash(basename:*)",
+      "Bash(dirname:*)"
     ],
     "deny": [
-      "{{DENY_OTHERS}}",
-      "Edit({{CREW}}/bots/{{BOT}}/.claude/settings.json)",
-      "Edit({{CREW}}/bots/{{BOT}}/.env)",
-      "Edit({{CREW}}/bots/{{BOT}}/.mcp.json)",
-      "Edit({{CREW}}/common/hooks/**)",
-      "{{DENY_KNOWLEDGE}}"
+      "Edit({{BOT}}/.claude/settings.json)",
+      "Edit({{BOT}}/.env)",
+      "Edit({{BOT}}/.mcp.json)",
+      "Edit({{PRODEV}}/common/hooks/**)",
+      "Edit({{PRODEV}}/scripts/**)",
+      "Write({{UPLOADS}}/**)",
+      "Edit({{UPLOADS}}/**)"
     ],
-    "additionalDirectories": ["{{ROOMS_DIR}}", "{{KNOWLEDGE_DIR}}", "{{PROPOSALS_DIR}}"]
+    "additionalDirectories": ["{{PROJECT_DIR}}", "{{UPLOADS_DIR}}", "{{PRODEV_DIR}}"]
   },
-  "env": { "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1", "PATH": "{{PATH}}" },
+  "env": {
+    "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
+    "PATH": "{{PATH}}",
+    "PRODEV_BOT": "{{BOT_NAME}}",
+    "PRODEV_PROJECT": "{{PROJECT_DIR}}",
+    "MINIDISCORD_DB": "{{DB}}"
+  },
   "statusLine": { "type": "command", "command": "{{STATUSLINE}}" },
   "autoCompactEnabled": true,
   "autoCompactWindow": "{{AUTOCOMPACT}}",
   "hooks": {
     "SessionStart": [
       { "matcher": "startup|resume|clear|compact",
-        "hooks": [ { "type": "command", "command": "node ../../common/hooks/session-start.js" } ] }
+        "hooks": [ { "type": "command", "command": "node {{HOOKS}}/session-start.js" } ] }
+    ],
+    "PreCompact": [
+      { "matcher": "",
+        "hooks": [ { "type": "command", "command": "node {{HOOKS}}/pre-compact.js", "timeout": 180 } ] }
+    ],
+    "PreToolUse": [
+      { "matcher": "mcp__minidiscord-channel__reply",
+        "hooks": [ { "type": "command", "command": "node {{HOOKS}}/pre-reply.js" } ] }
     ]
   }
 }

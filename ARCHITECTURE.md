@@ -211,7 +211,7 @@ NFC 정규화 · 조사 떼기(을/를/이/가/은/는/의/에/에서/로/으로
 | pre-compact | PreCompact | 인수인계서 · 알림 · timeout 180 | fail-open |
 | pre-reply | PreToolUse `mcp__minidiscord-channel__reply` | `chat_id` 없음 → 막음 · 분량(count.js 900자·10줄) → 막음 · 자료 방이면 확정 다섯 조건 → 막음 · 보고 방 발송이면 결재 글 작성자 = charter PL → 막음 · `index.json.errors>0` → 막음 | **exit 2 + 이유 한 줄** (봇이 읽고 고친다) |
 
-pre-reply 의 확정 다섯 조건 (ADR-008): `confirmed_at` 글이 ① `author_type='user'` ② 같은 과제의 `/들이기` 방 ③ 본문 `^(확정|맞다|맞습니다|그대로|OK)\b` ④ `source_msgs` 전부보다 뒤이고 직전 봇 글에 같은 카드 번호 ⑤ 카드 `status: valid`. DB 를 못 열면 자료 방만 fail-closed.
+pre-reply 의 확정 다섯 조건 (ADR-008): `confirmed_at` 글이 ① `author_type='user'` ② 같은 과제의 `/들이기` 방 ③ 본문 `^(확정|맞다|맞습니다|그대로|OK)\b` ④ `source_msgs` 전부보다 뒤이고 직전 봇 글에 같은 카드 번호 ⑤ 카드 `status: valid`. DB 를 못 열면 자료 방과 보고 방 발송은 fail-closed(확정·결재를 확인할 수 없다). 방 갈래를 DB 로도 rooms.json 으로도 모르면 막지 않는다.
 
 | 스크립트 | 입력 → 출력 | 누가 부르나 |
 |---|---|---|
