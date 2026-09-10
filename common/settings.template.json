@@ -48,9 +48,7 @@
       "Edit({{BOT}}/.env)",
       "Edit({{BOT}}/.mcp.json)",
       "Edit({{PRODEV}}/common/hooks/**)",
-      "Edit({{PRODEV}}/scripts/**)",
-      "Write({{UPLOADS}}/**)",
-      "Edit({{UPLOADS}}/**)"
+      "Edit({{PRODEV}}/scripts/**)"
     ],
     "additionalDirectories": ["{{PROJECT_DIR}}", "{{UPLOADS_DIR}}", "{{PRODEV_DIR}}"]
   },

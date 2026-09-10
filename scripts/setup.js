@@ -98,6 +98,11 @@ function projectDir(opt) {
 const 과제이름 = dir => path.basename(dir);
 const 봇이름 = 과제 => `prodev-${과제}-비서`;
 const pat = p => '//' + p.replace(/\\/g, '/').replace(/^\//, '');    // Claude Code 권한 패턴
+// 윗자리가 아랫자리를 품는가 (같은 자리도 품는 것으로 본다). deny 가 과제 폴더를 덮는지 볼 때 쓴다.
+const 덮는다 = (윗자리, 아랫자리) => {
+  const a = path.resolve(윗자리), b = path.resolve(아랫자리);
+  return a === b || b.startsWith(a + path.sep);
+};
 const log = m => console.log('  ' + m);
 const esc = s => s.replace(/\\/g, '\\\\');
 
@@ -136,7 +141,12 @@ async function install(opt) {
   const 봇 = 봇이름(과제);
   const 봇폴더 = path.join(PRODEV, 'bots', 봇);
   const DB = process.env.MINIDISCORD_DB || path.join(MINIDISCORD, 'server', 'data', 'minidiscord.db');
+  // 자리 둘을 가른다 (ADR-019). 한 변수로 묶었다가 과제 폴더가 쓰기 금지가 됐다.
+  //   파일 뿌리(UPLOADS)      봇이 첨부할 수 있는 뿌리. 과제 저장소들의 부모다 (ARCHITECTURE 11절).
+  //                           **여기를 deny 하면 안 된다** — 과제 폴더가 그 안에 있다.
+  //   서버 업로드(SRV_UPLOADS) 서버가 받은 첨부를 쌓는 자리. 남의 원본이라 읽기만 한다.
   const UPLOADS = process.env.MINIDISCORD_BOT_FILES_DIR || path.join(MINIDISCORD, 'server', 'data', 'uploads');
+  const SRV_UPLOADS = path.join(path.dirname(DB), 'uploads');
 
   console.log(`저장소: ${PRODEV}\n과제:   ${과제} (${과제폴더})\n봇:     ${봇}\nminidiscord: ${MINIDISCORD} (${URL_})\n`);
 
@@ -180,6 +190,22 @@ async function install(opt) {
     .replace(/\{\{STATUSLINE\}\}/g, esc(path.join(PRODEV, 'common', 'statusline.sh')))
     .replace(/\{\{PATH\}\}/g, esc(BOT_PATH))
     .replace('"{{AUTOCOMPACT}}"', String(AUTOCOMPACT)));
+
+  // 서버 업로드 폴더는 읽기만 한다 — 단, 그 폴더가 과제 폴더를 덮으면 넣지 않는다.
+  // 덮으면 봇이 헌장·카드·일지를 못 쓴다 (R1 재생에서 실제로 그랬다. ADR-019).
+  // 0층 불변은 이 목록이 아니라 intake-copy.js 의 0444 잠금과 git 이 지킨다.
+  if (!덮는다(SRV_UPLOADS, 과제폴더)) {
+    settings.permissions.deny.push(`Write(${pat(SRV_UPLOADS)}/**)`, `Edit(${pat(SRV_UPLOADS)}/**)`);
+  } else {
+    log(`!! 서버 업로드 폴더가 과제 폴더를 덮는다 (${SRV_UPLOADS}) — 읽기 전용 deny 를 넣지 않는다`);
+  }
+
+  // 어떤 deny 도 과제 폴더를 덮어서는 안 된다. 덮으면 봇이 아무것도 못 남긴다.
+  const 덮는것 = settings.permissions.deny.filter(d => {
+    const m = /^(?:Write|Edit)\((.*?)\/\*\*\)$/.exec(d);
+    return m && 덮는다(m[1].replace(/^\/\//, '/'), 과제폴더);
+  });
+  if (덮는것.length) throw new Error(`deny 가 과제 폴더를 덮는다: ${덮는것.join(' · ')}`);
 
   fs.mkdirSync(path.join(봇폴더, '.claude'), { recursive: true });
   fs.writeFileSync(path.join(봇폴더, '.claude', 'settings.json'), JSON.stringify(settings, null, 2) + '\n');

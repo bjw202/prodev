@@ -106,3 +106,10 @@
 **결정** 부르는 쪽을 고친다. cron 두 줄과 훅의 알림은 `-b "md_session=$PRODEV_NOTIFY_TOKEN"` + multipart 로 보낸다. `-F` 가 아니라 **`--form-string`** 이다 — `-F` 는 `@` 로 시작하는 값을 파일 경로로 읽고, 멘션은 언제나 `@TO(` 로 시작한다 (시험이 이것을 curl 26 으로 잡았다). 토큰의 이름은 `PRODEV_NOTIFY_TOKEN` 하나이고 값은 알림 계정(사람 계정)의 `md_session` 값이다. `MINIDISCORD_URL` 은 그대로 쓴다.
 **봇 문맥에 두지 않는다** `setup.js` 가 만드는 `settings.json` 의 `env` 에 `PRODEV_NOTIFY_TOKEN` 을 넣지 않는다. 훅은 봇 폴더의 `.env` 또는 훅을 띄운 실행 환경에서 읽는다. 사람 계정의 토큰이 봇의 문맥에 실리면 봇이 사람인 척 글을 쓸 수 있다.
 **재는 것** `test/server/setup.test.js` 가 cron 두 줄에 쿠키·`--form-string` 이 있고 `Bearer` 가 없음을 보고, **낸 줄을 그대로 서버에 쏴 200 과 남은 글**을 확인한다. `test/hooks.test.js` 가 모의 서버로 훅이 보낸 요청의 쿠키·multipart 를 확인한다.
+
+## ADR-019 파일 뿌리는 deny 하지 않는다 — 0층 불변은 0444 와 git 이 지킨다
+**상태** 확정 (meta, 2026-09-10, T3.3 R1 재생 중)
+**맥락** `setup.js` 가 파일 뿌리(`MINIDISCORD_BOT_FILES_DIR`)와 서버 업로드 폴더를 한 변수로 묶어 두고, 그 자리를 `Write(…/**)` · `Edit(…/**)` 로 막았다. T1.6 의 "업로드 폴더는 읽기만 (0층 불변)" 이 그대로 옮겨진 것이다. 그런데 ARCHITECTURE 11절이 정한 파일 뿌리는 **과제 저장소들의 부모**다 (봇 첨부가 뿌리 밖이면 서버가 조용히 뺀다). 그래서 과제 폴더 자체가 쓰기 금지가 됐다. R1 재생에서 봇이 헌장을 다 만들고도 `charter.md` 를 못 써 봇 폴더의 `pending-charter.md` 에 들고 있었다 (본방 #7 · #9 · #11).
+**결정** 파일 뿌리는 `additionalDirectories` 로 **열기만** 하고 deny 하지 않는다. 서버 업로드 폴더(`<DATA_DIR>/uploads`)는 남의 원본이라 읽기 전용으로 두되, **그 폴더가 과제 폴더를 덮으면 넣지 않는다.** 그리고 `setup.js` 가 설정을 쓰기 전에 deny 가운데 과제 폴더를 덮는 것이 있으면 예외로 죽는다 — 조용히 못 쓰는 봇이 되느니 설치가 실패하는 편이 낫다.
+**0층은 무엇이 지키나** 권한 목록이 아니라 ① `intake-copy.js` 가 들인 원본에 거는 `0444` ② git 이다. `inbox/**` 를 deny 로 좁히는 길도 있었으나 사이드카(`files.md`)는 같은 폴더에서 계속 고쳐 써야 하고 Claude Code 의 deny 규칙으로 한 파일만 빼기가 안 되므로, 0444 에 맡긴다.
+**재는 것** `test/server/setup.test.js` 가 만들어진 `settings.json` 의 deny 에 과제 폴더를 덮는 항목이 0건임을, 그리고 파일 뿌리가 deny 에 없고 `additionalDirectories` 에 있음을 본다.

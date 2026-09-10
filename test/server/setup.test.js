@@ -201,9 +201,69 @@ test('setup — bots/<이름>/.claude/settings.json 에 훅 셋과 env 셋이 �
   for (const 항목 of ['Bash(python3:*)', 'Bash(chmod:*)', 'Bash(shasum:*)', 'Bash(cd:*)', 'Bash(gh:*)', 'Bash(grep:*)']) {
     assert.ok(s.permissions.allow.includes(항목), `허용에 ${항목} 이 없다`);
   }
-  // 업로드 폴더는 읽게 열되 쓰지는 못하게 한다 (원본 불변)
+  // 파일 뿌리는 읽게 열어 둔다 (첨부가 거기 있다)
   assert.ok(s.permissions.additionalDirectories.length >= 2);
-  assert.ok(s.permissions.deny.some(d => d.startsWith('Write(')), '업로드 폴더 쓰기를 안 막았다');
+});
+
+test('setup settings — deny 가 과제 폴더를 덮지 않는다 (ADR-019)', () => {
+  // R1 재생에서 실제로 겪은 것: 파일 뿌리(MINIDISCORD_BOT_FILES_DIR)가 과제 저장소들의 부모인데
+  // 그것을 통째로 deny 하는 바람에 봇이 charter.md 를 못 썼다. 헌장을 다 만들고도 남기지 못했다.
+  const s = JSON.parse(fs.readFileSync(path.join(상태.botDir, '.claude', 'settings.json'), 'utf8'));
+  const 덮는다 = (윗자리, 아랫자리) => {
+    const a = path.resolve(윗자리), b = path.resolve(아랫자리);
+    return a === b || b.startsWith(a + path.sep);
+  };
+  const 덮는것 = s.permissions.deny.filter(d => {
+    const m = /^(?:Write|Edit)\((.*?)\/\*\*\)$/.exec(d);
+    return m && 덮는다(m[1].replace(/^\/\//, '/'), 상태.project);
+  });
+  assert.deepStrictEqual(덮는것, [], `deny 가 과제 폴더를 덮는다: ${덮는것.join(' · ')}`);
+
+  // 파일 뿌리 자체도 deny 에 없어야 한다 — 과제 폴더가 그 안에 있다
+  const 뿌리 = path.dirname(상태.project);
+  assert.ok(!s.permissions.deny.some(d => d.includes(뿌리.replace(/^\//, ''))),
+    `파일 뿌리가 deny 에 있다: ${뿌리}`);
+
+  // 0층 불변은 deny 가 아니라 intake-copy.js 의 0444 와 git 이 지킨다 (ADR-019)
+  assert.ok(s.permissions.additionalDirectories.some(d => path.resolve(d) === path.resolve(상태.project)),
+    '과제 폴더가 열려 있지 않다');
+});
+
+test('setup settings — 파일 뿌리가 과제 폴더의 부모일 때도 deny 가 안 덮는다 (ADR-019 되돌이 시험)', () => {
+  // 위 시험만으로는 모자라다. 시험 하네스는 과제 폴더를 파일 뿌리 **밖**에 두므로,
+  // 고치기 전 코드로도 통과한다. 결함이 난 배치는 이것이다:
+  //   MINIDISCORD_BOT_FILES_DIR=<루트>/projects  ·  --project <루트>/projects/<과제>
+  // ARCHITECTURE 11절이 파일 뿌리를 "과제 저장소들의 부모" 로 정했으니 이것이 정상 배치다.
+  const 뿌리 = fs.mkdtempSync(path.join(os.tmpdir(), 'prodev-root-'));
+  const 과제이름 = '되돌이시험';
+  const 과제폴더 = path.join(뿌리, 'projects', 과제이름);
+  fs.mkdirSync(과제폴더, { recursive: true });
+  const 봇폴더 = path.join(ROOT, 'bots', `prodev-${과제이름}-비서`);
+
+  try {
+    돌린다([], {
+      PRODEV_PROJECT: 과제폴더,
+      MINIDISCORD_BOT_FILES_DIR: path.join(뿌리, 'projects'),
+      MINIDISCORD_DB: path.join(뿌리, 'mddata', 'minidiscord.db'),
+    });
+
+    const s = JSON.parse(fs.readFileSync(path.join(봇폴더, '.claude', 'settings.json'), 'utf8'));
+    const 덮는것 = s.permissions.deny.filter(d => {
+      const m = /^(?:Write|Edit)\((.*?)\/\*\*\)$/.exec(d);
+      if (!m) return false;
+      const 자리 = path.resolve(m[1].replace(/^\/\//, '/'));
+      return 과제폴더 === 자리 || 과제폴더.startsWith(자리 + path.sep);
+    });
+    assert.deepStrictEqual(덮는것, [], `deny 가 과제 폴더를 덮는다 — 봇이 charter.md 를 못 쓴다: ${덮는것.join(' · ')}`);
+
+    // 서버 업로드 폴더는 그대로 읽기 전용이어야 한다 (그 자리는 남의 원본이다)
+    const 서버업로드 = path.join(뿌리, 'mddata', 'uploads');
+    assert.ok(s.permissions.deny.some(d => d.includes(서버업로드.replace(/^\//, ''))),
+      '서버 업로드 폴더까지 열어 버렸다');
+  } finally {
+    fs.rmSync(봇폴더, { recursive: true, force: true });
+    fs.rmSync(뿌리, { recursive: true, force: true });
+  }
 });
 
 test('setup cron — crontab 두 줄을 stdout 으로만 낸다', () => {
