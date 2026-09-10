@@ -53,7 +53,12 @@ function roomName(chatId) {
   return null;
 }
 
-// "prodev-시험/자료" → { 과제: "prodev-시험", 갈래: "자료" }. 본방은 갈래가 null.
+// 과제 하나가 쓰는 방은 둘뿐이다 (ADR-022): 본방(접미어 없음)과 <과제>/files.
+// 갈래 이름을 여기 한 자리에 둔다 — setup.js(방 만들기)와 pre-reply.js(확정 조건 ②)가 같이 쓴다.
+const 갈래들 = ['files'];
+const 파일방 = 'files';
+
+// "prodev-시험/files" → { 과제: "prodev-시험", 갈래: "files" }. 본방은 갈래가 null.
 function roomParts(name) {
   const i = String(name || '').indexOf('/');
   if (i < 0) return { 과제: String(name || ''), 갈래: null };
@@ -72,7 +77,7 @@ const { execFileSync } = require('child_process');
 //   1 PRODEV_NOTIFY_ROOM        사람이 못 박은 자리
 //   2 힌트                       봉투의 chat_id 같은 것 (PreCompact 입력에는 없다)
 //   3 인수인계서의 "방과 마지막 message_id" 절 첫 chat_id   하던 방이 있으면 거기가 맞다
-//   4 rooms.json 의 본방          이름에 갈래(/…)가 없는 방 하나
+//   4 rooms.json 의 본방          이름에 접미어(/files)가 없는 방 하나
 // 못 찾으면 null — 부르는 쪽이 알림을 건너뛴다. 아무 방에나 던지지 않는다.
 function 알릴방(힌트) {
   if (process.env.PRODEV_NOTIFY_ROOM) return String(process.env.PRODEV_NOTIFY_ROOM);
@@ -134,4 +139,4 @@ function 알린다(글, 방번호) {
   }
 }
 
-module.exports = { REPO, botDir, projectDir, handoffFile, dbFile, roomName, roomParts, 알릴방, 알림토큰, 알린다 };
+module.exports = { REPO, 갈래들, 파일방, botDir, projectDir, handoffFile, dbFile, roomName, roomParts, 알릴방, 알림토큰, 알린다 };

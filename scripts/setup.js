@@ -2,13 +2,13 @@
 // setup.js — 사람이 돌린다. 봇은 이 파일을 쓰지 않는다.
 //
 //   node scripts/setup.js [--project <과제폴더>]   설치: 봇 폴더 · settings(훅 배선 · env 셋) · .env · .mcp.json
-//   node scripts/setup.js rooms <과제>             방 일곱을 만들고 봇을 일곱 다 참여시킨다 (API)
+//   node scripts/setup.js rooms <과제>             방 둘을 만들고 봇을 둘 다 참여시킨다 (API)
 //   node scripts/setup.js cron                     crontab 두 줄을 낸다 (08:00 브리핑 · 18:30 일지, 쿠키 + multipart — ADR-018)
 //   node scripts/setup.js archive <방>             방 하나를 보관한다
 //
 // crew 의 setup.js 에서 왔다. 다른 점 셋:
 //   ① 봇이 다섯이 아니라 **하나**다 (prodev-<과제>-비서)
-//   ② 방을 하나가 아니라 **일곱 묶음**으로 연다 (ARCHITECTURE 2절)
+//   ② 방을 하나가 아니라 **둘**로 연다 — 본방과 <과제>/files (ARCHITECTURE 2절 · ADR-022)
 //   ③ 훅이 하나가 아니라 셋이다 (session-start · pre-compact · pre-reply)
 //
 // 자리: minidiscord 는 기본 <저장소>/../minidiscord. 다른 곳이면 MINIDISCORD_DIR.
@@ -28,13 +28,14 @@ const AUTOCOMPACT = Number(process.env.PRODEV_AUTOCOMPACT || 650000);
 const CLAUDE_ARGS = ['--setting-sources', 'project,local', '--strict-mcp-config', '--mcp-config', '.mcp.json',
   '--dangerously-load-development-channels', 'server:minidiscord-channel'];
 
-// 과제 하나 = 방 일곱. 본방은 갈래가 없고 나머지 여섯은 접두어/갈래 다 (ARCHITECTURE 2절).
-const 갈래 = ['들이기', '자료', '리서치', '특허', '논문', '보고'];
+// 과제 하나 = 방 둘. 본방은 접미어가 없고 나머지 하나가 <접두어>/files 다 (ARCHITECTURE 2절 · ADR-022).
+// 이름은 places.js 한 자리에서 온다 — 훅(pre-reply)의 확정 조건 ② 와 같은 값이어야 한다.
+const { 갈래들: 갈래 } = require('../common/hooks/places.js');
 
 // ── 허용 목록은 왜 이 꼴인가 ──────────────────────────────────────────────
 // 바탕은 ../crew/common/settings.template.json 의 33건이다. 거기에 회차 5 의 승인 31회를 덮는 것을 더했다.
 // 31회는 항목 목록이 아니라 원인 넷이다 (../meta/crew-eval/notes/round-5-result.md 86~91행).
-// 승인이 뜨면 그 글이 마지막 to 방에 남아 자료 방이 더러워진다. 그래서 미리 연다.
+// 승인이 뜨면 그 글이 마지막 to 방에 남아 방이 더러워진다. 그래서 미리 연다.
 //
 //   원인 1  cd … && … · pwd; ls 로 이어 붙임          9회
 //           → Bash(cd:*) · Bash(pwd) · Bash(echo:*)
@@ -239,13 +240,13 @@ async function install(opt) {
   if (!up) log(`서버를 켜고 다시 돌려라: cd ${JSON.stringify(MINIDISCORD)} && MINIDISCORD_BOT_FILES_DIR=${JSON.stringify(UPLOADS)} npm run dev -w server`);
   else if (!token) log('위 ② 의 주의를 처리한 뒤 다시 돌려라');
   else {
-    log(`node scripts/setup.js rooms ${과제}   → 방 일곱 만들고 봇 참여`);
+    log(`node scripts/setup.js rooms ${과제}   → 방 둘 만들고 봇 참여`);
     log(`cd ${JSON.stringify(봇폴더)} && claude ${CLAUDE_ARGS.join(' ')}`);
   }
   return { 봇, 봇폴더, 과제폴더, settings };
 }
 
-// ── 방 일곱 ───────────────────────────────────────────────
+// ── 방 둘 (본방 · files) ──────────────────────────────────
 
 async function rooms(과제) {
   if (!과제) throw new Error('과제 이름을 주세요: node scripts/setup.js rooms <과제>');
@@ -271,7 +272,7 @@ async function rooms(과제) {
     만든것.push({ id: room.id, name });
   }
 
-  // 봇이 "내가 어느 방을 맡나"를 아는 자리. 훅(pre-reply)도 DB 가 죽었을 때 이것으로 방 갈래를 안다.
+  // 봇이 "내가 어느 방을 맡나"를 아는 자리. 훅도 DB 가 죽었을 때 이것으로 방 이름을 안다 (ADR-021).
   const 봇폴더 = path.join(PRODEV, 'bots', 봇);
   fs.mkdirSync(봇폴더, { recursive: true });
   fs.writeFileSync(path.join(봇폴더, 'rooms.json'),

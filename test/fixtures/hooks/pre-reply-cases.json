@@ -1,10 +1,8 @@
 {
-  "설명": "pre-reply.js 시험. 각 input 은 PreToolUse stdin 의 tool_input(reply). DB 는 fixtures/hooks/fixture.db (MINIDISCORD_DB 로), 과제 저장소는 fixtures/hooks/project (PRODEV_PROJECT 로). want 는 exit code. 막을 때는 stderr 에 이유 한 줄. 결재 검사의 표식은 text 의 '결재 #<id>' 이고 그 글의 작성자가 charter.md 의 PL 과 같아야 한다.",
+  "설명": "pre-reply.js 시험. 각 input 은 PreToolUse stdin 의 tool_input(reply). DB 는 fixtures/hooks/fixture.db (MINIDISCORD_DB 로), 과제 저장소는 fixtures/hooks/project (PRODEV_PROJECT 로). want 는 exit code. 막을 때는 stderr 에 이유 한 줄. 방아쇠는 방이 아니라 **봉투를 벗긴 첫 줄의 표식**이다 (ADR-022): `[카드] <번호> · <제목> · <경로>` 는 확정 다섯 조건을, `[발송]` 은 결재를 부른다. 결재 검사의 표식은 본문의 '결재 #<id>' 이고 그 글의 작성자가 charter.md 의 PL 과 같아야 한다.",
   "방": {
     "1": "prodev-시험 (본방)",
-    "2": "prodev-시험/들이기",
-    "3": "prodev-시험/자료",
-    "4": "prodev-시험/보고"
+    "2": "prodev-시험/files"
   },
   "cases": [
     {
@@ -32,82 +30,114 @@
       "want": 0
     },
     {
-      "name": "자료 방 정상 카드 E-0001",
+      "name": "카드 공지 정상 E-0001 (files 방)",
       "input": {
-        "chat_id": "3",
-        "text": "E-0001 · 훅 시험 · 조건 없음 · 결과 없음 · 관련 없음 · cards/E-0001.md"
+        "chat_id": "2",
+        "text": "[카드] E-0001 · 훅 시험 · cards/E-0001.md"
       },
       "want": 0
     },
     {
-      "name": "자료 방 confirmed_at 이 봇 글 E-0002",
+      "name": "카드 공지 confirmed_at 이 봇 글 E-0002",
       "input": {
-        "chat_id": "3",
-        "text": "E-0002 · …"
+        "chat_id": "2",
+        "text": "[카드] E-0002 · 훅 시험 · cards/E-0002.md"
       },
       "want": 2
     },
     {
-      "name": "자료 방 confirmed_at 없음 E-0003",
+      "name": "카드 공지 confirmed_at 없음 E-0003",
       "input": {
-        "chat_id": "3",
-        "text": "E-0003 · …"
+        "chat_id": "2",
+        "text": "[카드] E-0003 · 훅 시험 · cards/E-0003.md"
       },
       "want": 2
     },
     {
-      "name": "자료 방 status draft E-0004",
+      "name": "카드 공지 status draft E-0004",
       "input": {
-        "chat_id": "3",
-        "text": "E-0004 · …"
+        "chat_id": "2",
+        "text": "[카드] E-0004 · 훅 시험 · cards/E-0004.md"
       },
       "want": 2
     },
     {
-      "name": "자료 방 직전 봇 글에 카드 번호 없음 E-0005",
+      "name": "카드 공지 직전 봇 글에 카드 번호 없음 E-0005",
       "input": {
-        "chat_id": "3",
-        "text": "E-0005 · …"
+        "chat_id": "2",
+        "text": "[카드] E-0005 · 훅 시험 · cards/E-0005.md"
       },
       "want": 2
     },
     {
-      "name": "자료 방 확정 글이 본방 E-0006",
+      "name": "카드 공지 확정 글이 files 방이 아님 E-0006",
       "input": {
-        "chat_id": "3",
-        "text": "E-0006 · …"
+        "chat_id": "2",
+        "text": "[카드] E-0006 · 훅 시험 · cards/E-0006.md"
       },
       "want": 2
     },
     {
-      "name": "자료 방 확정 어휘 아님(네) E-0007",
+      "name": "카드 공지 확정 어휘 아님(네) E-0007",
       "input": {
-        "chat_id": "3",
-        "text": "E-0007 · …"
+        "chat_id": "2",
+        "text": "[카드] E-0007 · 훅 시험 · cards/E-0007.md"
       },
       "want": 2
     },
     {
-      "name": "자료 방 글에 카드 번호 없음",
+      "name": "[카드] 인데 번호 꼴이 아니다",
       "input": {
-        "chat_id": "3",
-        "text": "오늘 자료를 올립니다"
+        "chat_id": "2",
+        "text": "[카드] 오늘 자료를 올립니다"
       },
       "want": 2
     },
     {
-      "name": "보고 방 발송, 결재 #5 (PL)",
+      "name": "확정 없는 카드는 본방에서 공지해도 막힌다 (표식이 방아쇠다)",
       "input": {
-        "chat_id": "4",
+        "chat_id": "1",
+        "text": "[카드] E-0003 · 훅 시험 · cards/E-0003.md"
+      },
+      "want": 2
+    },
+    {
+      "name": "평소 답에서 카드 번호를 말하는 것은 막히지 않는다 (files 방)",
+      "input": {
+        "chat_id": "2",
+        "text": "E-0003 에 있습니다. 아직 확정 전이라 draft 입니다."
+      },
+      "want": 0
+    },
+    {
+      "name": "평소 답에서 카드 번호를 말하는 것은 막히지 않는다 (본방)",
+      "input": {
+        "chat_id": "1",
+        "text": "그 값은 E-0001 · E-0005 두 카드에 있습니다."
+      },
+      "want": 0
+    },
+    {
+      "name": "[발송] 결재 #5 (PL) — 본방",
+      "input": {
+        "chat_id": "1",
         "text": "[발송] 주간 보고 2026-W37 · 결재 #5"
       },
       "want": 0
     },
     {
-      "name": "보고 방 발송, 결재 #6 (과제원)",
+      "name": "[발송] 결재 #6 (과제원) — 본방",
       "input": {
-        "chat_id": "4",
+        "chat_id": "1",
         "text": "[발송] 주간 보고 2026-W37 · 결재 #6"
+      },
+      "want": 2
+    },
+    {
+      "name": "[발송] 인데 결재 글 번호가 없다 — files 방",
+      "input": {
+        "chat_id": "2",
+        "text": "[발송] 주간 보고 2026-W37"
       },
       "want": 2
     }

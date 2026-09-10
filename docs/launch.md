@@ -75,8 +75,7 @@ node scripts/setup.js rooms 시험
 
 `setup.js` 가 만드는 것: `bots/prodev-<과제>-비서/` 아래 `.env`(토큰) · `.claude/settings.json`(훅 셋 배선 · env 셋 · 허용 목록) · `.mcp.json` · `rooms.json`.
 방 둘은 `prodev-<과제>` (본방) 와 `prodev-<과제>/files` 다 (ADR-022).
-
-> **지금 상태 (2026-09-10)**: ADR-022 는 설계 문서에서만 정해졌다. `setup.js` 는 아직 옛 방 묶음을 만든다 — 뒤따르는 코드 PR 이 들어간 뒤에 이 절대로 된다.
+사람에게 한 줄로 알린다: **"말은 아무 데서나, 파일은 files 에."**
 
 확인할 것: 출력 ④ "명령 N/N 풀림" 에 못 찾은 명령이 없어야 한다. 있으면 그 명령을 쓰는 일이 통째로 막힌다.
 
@@ -355,7 +354,7 @@ crontab -e                             # 그 두 줄을 붙인다
 | # | 하는 것 | 되면 |
 |---|---|---|
 | 1 | `cd prodev && npm install` · `cd ../minidiscord && npm install && npm run build -w channel` | `ls minidiscord/channel/dist/index.js` |
-| 2 | **저장소 사본에서** `npm test` | `pass 90 · fail 0` |
+| 2 | **저장소 사본에서** `npm test` | `pass 94 · fail 0` |
 | 3 | 사본에서 `MINIDISCORD_DIR=<실제> npm run test:server` | `pass 20 · fail 0` |
 | 4 | 서버를 띄운다 (10.5) | `curl -sS http://127.0.0.1:3000/api/health` → `{"ok":true}` |
 | 5 | 브라우저로 계정 셋을 만든다 (10.6) | 방 화면이 보인다 |

@@ -74,7 +74,7 @@ prodev/
   scripts/chat.js                  ../meta/prodev-review/plans/proto/chat.js 에서 (search 를 AND 로)
   scripts/count.js                 crew 그대로
   scripts/index.js  find.js  peek.js  intake-copy.js  plot.py     새로
-  scripts/setup.js                 crew 것을 고침 (봇 하나 · 방 묶음 · cron · archive)
+  scripts/setup.js                 crew 것을 고침 (봇 하나 · 방 둘 · cron · archive)
   scripts/retro-cost.js            crew 것을 봇 하나로
   scripts/replay.js                검수용. 사람 역할을 API 로 재생 (VERIFICATION 4절)
   bots/<이름>/                     setup 이 만든다. git 제외
@@ -213,7 +213,7 @@ NFC 정규화 · 조사 떼기(을/를/이/가/은/는/의/에/에서/로/으로
 | pre-compact | PreCompact | 인수인계서 · 알림(알림 계정의 쿠키 `md_session` + multipart, ADR-018) · timeout 180 | fail-open |
 | pre-reply | PreToolUse `mcp__minidiscord-channel__reply` | `chat_id` 없음 → 막음 · 분량(count.js 900자·10줄) → 막음 · **`[카드]` 표식**이면 확정 다섯 조건 → 막음 · **`[발송]` 표식**이면 결재 글 작성자 = charter PL → 막음 · `index.json.errors>0` → 막음 | **exit 2 + 이유 한 줄** (봇이 읽고 고친다) |
 
-관문의 **방아쇠는 방이 아니라 표식**이다 (ADR-022). 카드 공지 글은 봉투를 벗긴 본문의 첫 줄이 `[카드] <번호> · <제목> · <경로>` 꼴이고, 훅은 `^\[카드\]\s+(E|R|D|N)-\d{4}\s+·` 로 알아본다. 발송 글은 첫 줄에 `[발송]` 이 있다. 표식이 없는 글에는 이 둘이 안 걸리므로, 봇이 평소 답에서 카드 번호를 입에 올리는 것은 막히지 않는다.
+관문의 **방아쇠는 방이 아니라 표식**이다 (ADR-022). 훅은 봉투를 벗긴 본문의 **첫 줄**만 본다. 첫 줄이 `[카드]` 로 시작하면 카드 공지로 보고 관문에 세운다 — 그 안에서 `^\[카드\]\s+(E\|R\|D\|N)-\d{4}\s+·` 꼴인지 보고, 아니면 "번호 없는 공지는 색인 줄이 못 된다"로 막는다. 첫 줄이 `[발송]` 로 시작하면 결재를 본다. 표식이 없는 글에는 이 둘이 안 걸리므로, 봇이 평소 답에서 카드 번호를 입에 올리는 것은 막히지 않는다. 방을 모르는 `chat_id` 여도 표식이 있으면 관문이 걸린다.
 
 pre-reply 의 확정 다섯 조건 (ADR-008): `confirmed_at` 글이 ① `author_type='user'` ② 같은 과제의 `/files` 방 ③ **봉투(`@TO(…)` · `@CC(…)`)를 벗긴** 본문이 `^(확정|맞다|맞습니다|그대로|OK)\b` ④ `source_msgs` 전부보다 뒤이고 직전 봇 글에 같은 카드 번호 ⑤ 카드 `status: valid`. DB 를 못 열면 카드 공지와 발송은 fail-closed(확정·결재를 확인할 수 없다) — 표식이 방아쇠라 "방 갈래를 모르면 안 막는다"는 예외는 없어졌다.
 
@@ -226,7 +226,7 @@ pre-reply 의 확정 다섯 조건 (ADR-008): `confirmed_at` 글이 ① `author_
 | peek.js | 파일 → 행 수 · 열 이름 · 5행 · 형식 | intake |
 | intake-copy.js | 첨부 경로 → inbox 폴더 · `.v2` · SHA-256 · files.md 뼈대 | intake |
 | plot.py | csv 열 → `<과제>/tmp/*.png` | intake |
-| setup.js | 봇 등록 · settings 생성 · 방 묶음 · 봇 참여 · cron · archive | 사람 |
+| setup.js | 봇 등록 · settings 생성 · 방 둘 · 봇 참여 · cron · archive | 사람 |
 | retro-cost.js | 세션 기록 → 값 · 승인 수 · `--record` | meta |
 | replay.js | 대본(JSON) → API 로 사람 글 재생 · 봇 답 수집 · 기록 | meta (검수) |
 

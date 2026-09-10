@@ -57,7 +57,7 @@ test('명령 3/6 around — #300 앞뒤 2씩이면 자기까지 5건, 가운데�
   assert.deepStrictEqual(r.map(m => m.id), [298, 299, 300, 301, 302]);
 });
 
-test('명령 4/6 since — 방 1 의 #370 다음은 371..377 일곱 건', () => {
+test('명령 4/6 since — 방 1 의 #370 다음은 371..377 7 건', () => {
   const r = rows('since', '1', '370');
   assert.strictEqual(r.length, 7);
   assert.strictEqual(r[0].id, 371);
@@ -79,7 +79,7 @@ test('명령 6/6 show — #2 는 본문에 "출석체크" 가 있고 첨부 0', 
 });
 
 test('명령 곁 — --speaker 는 말한이 하나로 거른다', () => {
-  // 거르지 않으면 141건에 말한이 일곱, 거르면 29건에 orchestrator 하나다.
+  // 거르지 않으면 141건에 말한이 7, 거르면 29건에 orchestrator 하나다.
   const 전부 = rows('search', '수율', '--limit', '500');
   assert.strictEqual(전부.length, 141);
   assert.ok(new Set(전부.map(m => m.author)).size > 1);

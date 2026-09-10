@@ -235,7 +235,7 @@ test('pre-compact — 기록을 못 읽어도 exit 0 이고, 못 썼다고 파�
   for (const k of 칸) assert.ok(md.includes(`## ${k}`), `칸이 빠졌다: ${k}`);
 });
 
-// ── pre-reply 13건 ────────────────────────────────────────
+// ── pre-reply 17건 (표식이 방아쇠다 — ADR-022) ────────────
 
 const CASES = JSON.parse(fs.readFileSync(path.join(F, 'pre-reply-cases.json'), 'utf8'));
 
@@ -258,31 +258,40 @@ for (const c of CASES.cases) {
   });
 }
 
-test('pre-reply — DB 를 못 열면 자료 방만 막고 나머지 방은 통과한다 (ADR-008)', () => {
+test('pre-reply — DB 를 못 열면 카드 공지와 발송만 막고 평소 답은 통과한다 (ADR-008 · ADR-022)', () => {
   const 없는DB = path.join(tmp('nodb'), '없다.db');
   // DB 가 죽어도 방 이름은 봇 폴더의 rooms.json 으로 안다 (setup.js 가 쓰는 파일).
   const 봇폴더 = tmp('nobot');
   fs.writeFileSync(path.join(봇폴더, 'rooms.json'), JSON.stringify({
-    rooms: [{ id: 1, name: 'prodev-시험' }, { id: 3, name: 'prodev-시험/자료' }],
+    rooms: [{ id: 1, name: 'prodev-시험' }, { id: 2, name: 'prodev-시험/files' }],
   }));
   const env = { MINIDISCORD_DB: 없는DB, PRODEV_PROJECT: PROJECT, PRODEV_BOT_DIR: 봇폴더 };
 
-  // 자료 방(3) — 확정을 확인할 길이 없으므로 막는다
-  const 자료 = hook('pre-reply.js', { tool_input: { chat_id: '3', text: 'E-0001 · 훅 시험' } }, env);
-  assert.strictEqual(자료.code, 2);
-  assert.match(자료.stderr, /확정을 확인할 수 없다|DB/);
+  // 카드 공지 — 확정을 확인할 길이 없으므로 막는다 (fail-closed)
+  const 공지 = hook('pre-reply.js', { tool_input: { chat_id: '2', text: '[카드] E-0001 · 훅 시험 · cards/E-0001.md' } }, env);
+  assert.strictEqual(공지.code, 2);
+  assert.match(공지.stderr, /확정을 확인할 수 없다|DB/);
 
-  // 본방(1) — 통과. 여기까지 막으면 봇이 아무 말도 못 한다
-  const 본방 = hook('pre-reply.js', { tool_input: { chat_id: '1', text: '안녕하세요' } }, env);
-  assert.strictEqual(본방.code, 0, `stderr: ${본방.stderr}`);
+  // 발송 — 결재를 확인할 길이 없으므로 막는다 (방을 가리지 않는다)
+  const 발송 = hook('pre-reply.js', { tool_input: { chat_id: '1', text: '[발송] 주간 보고 · 결재 #5' } }, env);
+  assert.strictEqual(발송.code, 2);
+  assert.match(발송.stderr, /결재를 확인할 수 없다|DB/);
+
+  // 표식이 없는 평소 답 — 통과. 여기까지 막으면 봇이 아무 말도 못 한다
+  const 평소 = hook('pre-reply.js', { tool_input: { chat_id: '1', text: '안녕하세요. E-0001 에 있습니다.' } }, env);
+  assert.strictEqual(평소.code, 0, `stderr: ${평소.stderr}`);
 });
 
-test('pre-reply — 방을 아예 모르면(DB 도 rooms.json 도 없다) 막지 않는다', () => {
-  // 자료 방일 수도 있으나 가려낼 길이 없다. 여기서 전부 막으면 봇이 한 마디도 못 한다.
-  // 자료 방만 fail-closed 라는 규칙은 "자료 방인 줄 알 때" 의 규칙이다.
-  const r = hook('pre-reply.js', { tool_input: { chat_id: '3', text: 'E-0001 · 훅 시험' } },
-    { MINIDISCORD_DB: path.join(tmp('nodb2'), '없다.db'), PRODEV_PROJECT: PROJECT, PRODEV_BOT_DIR: tmp('nobot2') });
-  assert.strictEqual(r.code, 0, `stderr: ${r.stderr}`);
+test('pre-reply — 방을 아예 모르면 표식 있는 글만 막고 나머지는 통과한다 (ADR-022)', () => {
+  // 방아쇠가 방이 아니라 표식이라, 방을 몰라도 카드 공지는 fail-closed 다.
+  // 표식이 없는 글까지 막으면 봇이 한 마디도 못 한다.
+  const env = { MINIDISCORD_DB: path.join(tmp('nodb2'), '없다.db'), PRODEV_PROJECT: PROJECT, PRODEV_BOT_DIR: tmp('nobot2') };
+
+  const 공지 = hook('pre-reply.js', { tool_input: { chat_id: '9', text: '[카드] E-0001 · 훅 시험 · cards/E-0001.md' } }, env);
+  assert.strictEqual(공지.code, 2, `stderr: ${공지.stderr}`);
+
+  const 평소 = hook('pre-reply.js', { tool_input: { chat_id: '9', text: 'E-0001 에 있습니다' } }, env);
+  assert.strictEqual(평소.code, 0, `stderr: ${평소.stderr}`);
 });
 
 
@@ -383,9 +392,8 @@ test('pre-compact 알림 — 방 번호를 rooms.json 의 본방에서 찾는다
   fs.writeFileSync(path.join(봇폴더, '.env'), `PRODEV_NOTIFY_TOKEN=${진짜꼴토큰}\n`);
   fs.writeFileSync(path.join(봇폴더, 'rooms.json'), JSON.stringify({
     과제: '시험', rooms: [
-      { id: 41, name: 'prodev-시험', last_seen_id: 0 },              // 본방 — 갈래가 없다
-      { id: 42, name: 'prodev-시험/들이기', last_seen_id: 0 },
-      { id: 43, name: 'prodev-시험/자료', last_seen_id: 0 },
+      { id: 42, name: 'prodev-시험/files', last_seen_id: 0 },
+      { id: 41, name: 'prodev-시험', last_seen_id: 0 },              // 본방 — 접미어가 없다
     ],
   }));
 
@@ -416,12 +424,12 @@ test('pre-compact 알림 — chat_id 와 env 가 rooms.json 보다 먼저다', a
 });
 
 test('pre-compact 알림 — rooms.json 에 본방이 없으면 아무 데도 안 보낸다', async () => {
-  // 갈래 방만 있으면 어디에 알릴지 모른다. 아무 방에나 던지지 않는다.
+  // files 방만 있으면 어디에 알릴지 모른다. 아무 방에나 던지지 않는다.
   const S = await 받아적는서버();
   const 봇폴더 = tmp('본방없음');
   fs.writeFileSync(path.join(봇폴더, '.env'), `PRODEV_NOTIFY_TOKEN=${진짜꼴토큰}\n`);
   fs.writeFileSync(path.join(봇폴더, 'rooms.json'), JSON.stringify({
-    과제: '시험', rooms: [{ id: 42, name: 'prodev-시험/들이기', last_seen_id: 0 }],
+    과제: '시험', rooms: [{ id: 42, name: 'prodev-시험/files', last_seen_id: 0 }],
   }));
   const r = await 압축훅({ __기록없음: '1', MINIDISCORD_URL: S.url, PRODEV_NOTIFY_TOKEN: '', PRODEV_NOTIFY_ROOM: '', PRODEV_BOT_DIR: 봇폴더 });
   S.srv.close();
@@ -463,7 +471,7 @@ test('session-start — 압축 직후에는 방에 "정리가 끝났습니다" �
   const 봇폴더 = tmp('직후봇');
   fs.writeFileSync(path.join(봇폴더, '.env'), `PRODEV_NOTIFY_TOKEN=${진짜꼴토큰}\n`);
   fs.writeFileSync(path.join(봇폴더, 'rooms.json'), JSON.stringify({
-    과제: '시험', rooms: [{ id: 41, name: 'prodev-시험', last_seen_id: 0 }, { id: 42, name: 'prodev-시험/들이기', last_seen_id: 0 }],
+    과제: '시험', rooms: [{ id: 41, name: 'prodev-시험', last_seen_id: 0 }, { id: 42, name: 'prodev-시험/files', last_seen_id: 0 }],
   }));
 
   const r = await 시작훅({ MINIDISCORD_URL: S.url, PRODEV_BOT_DIR: 봇폴더 }, 'compact');

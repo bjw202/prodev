@@ -1,7 +1,7 @@
 # 지금 코드가 어떻게 생겼나 (as-built)
 
 설계는 `ARCHITECTURE.md` 다. **여기는 실제로 만들어진 것**을 적는다. 둘이 다르면 8절에 그 자리와 ADR 번호가 있다.
-단계가 끝날 때마다 갱신한다 (`TASKS.md` 0절). 마지막 갱신 2026-09-10, 3단계 관문(T3.M) 통과 뒤.
+단계가 끝날 때마다 갱신한다 (`TASKS.md` 0절). 마지막 갱신 2026-09-10, ADR-022(방 둘) 코드 PR 뒤.
 
 ---
 
@@ -48,13 +48,13 @@ prodev/
 `pre-reply.js` 가 보는 차례 (앞이 걸리면 뒤는 안 본다):
 1. `chat_id` 없음 → 막음
 2. 분량 (`count.js` 로 잰다) → 넘으면 막음
-3. 옛 카드 방(ADR-022 전 이름)이면 확정 조건 (ADR-008 + 봉투 벗기기 보충) → 아니면 막음
-4. 옛 보고 방의 발송이면 결재 글 작성자 = `charter.md` 의 PL → 아니면 막음
+3. 봉투를 벗긴 첫 줄이 `[카드]` 로 시작하면 → 꼴 검사 + 확정 조건 (ADR-008 + 봉투 벗기기 보충) → 아니면 막음
+4. 봉투를 벗긴 첫 줄이 `[발송]` 로 시작하면 → 결재 글 작성자 = `charter.md` 의 PL → 아니면 막음
 5. `index.json` 의 `errors > 0` → 막음
 
-DB 를 못 열면 그 방만 fail-closed. 방 갈래를 DB 로도 `rooms.json` 으로도 모르면 막지 않는다.
+**3·4 의 방아쇠는 방이 아니라 표식이다** (ADR-022). 방이 둘로 줄어 방으로는 "카드 공지"와 "카드 번호를 말하는 평범한 답"을 가를 수 없기 때문이다. 확정 조건 ② 의 방 이름은 `/files` 이고, 발송은 방을 가리지 않는다.
 
-**ADR-022 뒤에는 3·4 의 방아쇠가 방이 아니라 표식이 된다** (`[카드]` · `[발송]`). 조건 ② 의 방 이름은 `/files` 이고, 방 갈래를 몰라도 관문이 걸린다. 위 다섯은 **지금 코드 그대로**를 적은 것이고, 코드 PR 에서 바뀐다.
+DB 를 못 열거나 방을 몰라도 표식이 있으면 막는다 (카드 공지 · 발송은 fail-closed). 표식이 없는 글은 통과한다 — 거기까지 막으면 봇이 한 마디도 못 한다.
 
 ## 4. `.claude/` — 에이전트 여섯 · 스킬 열셋
 
@@ -70,7 +70,7 @@ DB 를 못 열면 그 방만 fail-closed. 방 갈래를 DB 로도 `rooms.json` �
 | 명령 | 만드는 것 |
 |---|---|
 | `setup.js [--project <과제폴더>]` | 과제 폴더의 하위 열 · 봇 폴더 · `.env`(봇 토큰) · `.claude/settings.json` · `.mcp.json`(토큰 있을 때만) |
-| `setup.js rooms <과제>` | 옛 방 묶음 + 봇 참여 + `rooms.json`. **ADR-022 뒤에는 방 둘** — 코드 PR 에서 바뀐다 |
+| `setup.js rooms <과제>` | 방 둘(본방 · `<과제>/files`) + 봇 참여 + `rooms.json` |
 | `setup.js cron` | crontab 두 줄을 stdout 으로 (쿠키 + `--form-string`, ADR-018) |
 | `setup.js archive <방>` | 방 하나 보관 |
 
@@ -104,14 +104,14 @@ DB 를 못 열면 그 방만 fail-closed. 방 갈래를 DB 로도 `rooms.json` �
 
 ## 7. 시험 묶음
 
-`npm test` — 서버가 필요 없다. **90건 · 0 실패.**
+`npm test` — 서버가 필요 없다. **94건 · 0 실패.**
 
 | 파일 | 건수 | 무엇을 |
 |---|---|---|
 | `chat.test.js` | 10 | fixture DB 하나로 여섯 명령 |
 | `count.test.js` | 4 | 세는 법 하나 |
 | `find.test.js` | 16 | 층 다섯 · 조사 떼기 · void 따라가기 |
-| `hooks.test.js` | 34 | session-start 5 + 압축 직후 알림 2 · pre-compact 5 + 알림 7 · pre-reply 15 |
+| `hooks.test.js` | 38 | session-start 5 + 압축 직후 알림 2 · pre-compact 5 + 알림 7 · pre-reply 19 (표식 사례 17 + fail-closed 2) |
 | `index.test.js` | 8 | 머리말 부분집합 · `next` · errors |
 | `intake.test.js` | 9 | 뿌리 밖 거절 · `.v2` · 0444 · 서버 저장명의 uuid 벗기기 셋 |
 | `peek.test.js` | 5 | csv · xlsx · pdf · jpg · 모르는 형식 |
@@ -136,6 +136,7 @@ cd <임시>/사본 && MINIDISCORD_DIR=<실제 minidiscord> npm run test:server
 | 파일 뿌리를 deny 하지 않는다 | 파일 뿌리가 과제 저장소들의 부모라, 막으면 봇이 헌장을 못 쓴다. 0층 불변은 0444 와 git 이 지킨다 | ADR-019 |
 | 산출물을 방에 첨부한다 | 경로만 주면 사람이 열러 가지 않는다 | ADR-020 |
 | `rooms.json` 은 방 이름표. `last_seen_id` 를 믿지 않는다 | 재생 다섯에서 그 값이 끝까지 0 이었는데 놓친 글은 서버 재배달이 다 가져왔다. ADR-006 을 뒤집었다 | ADR-021 |
+| 과제 하나 = 방 둘. 확정·발송 관문의 방아쇠가 방에서 표식으로 | 재생 실측에서 갈래 방이 값을 못 했고, 방이 합쳐지면 방으로는 공지와 평범한 답을 가를 수 없다 | ADR-022 |
 | 확정 어휘를 봉투 벗긴 뒤에 본다 | 사람 글은 언제나 `@TO(…)` 로 시작한다. 안 벗기면 확정이 영영 안 된다 | ADR-008 보충 |
 | 봇 `settings.json` 의 env 에 `MINIDISCORD_URL` | 없으면 훅이 기본 3000 을 보고 알림을 조용히 건너뛴다 | — |
 | intake 가 서버 저장명의 uuid 를 벗긴다 | 안 벗기면 같은 파일이 이름만 다른 채 둘이 된다 (`.v2` 가 안 걸린다) | — |
@@ -147,4 +148,4 @@ cd <임시>/사본 && MINIDISCORD_DIR=<실제 minidiscord> npm run test:server
 - `rooms.json` 의 `last_seen_id` 칸은 `setup.js` 가 0 으로 쓰고 아무도 갱신하지 않는다. 읽는 코드도 없다 (ADR-021).
 - cron 두 줄은 `setup.js cron` 이 내기만 한다. crontab 에 붙이는 것은 사람이 한다 (`docs/launch.md` 8절).
 - `bots/` 는 git 제외다. 봇 토큰은 서버 `bots` 표에도 평문으로 있어 잃어도 거기서 꺼낼 수 있다.
-- **ADR-022(방 둘)는 설계 문서에만 들어갔다.** `setup.js` · `pre-reply.js` · 스킬 열셋 · 시험은 아직 옛 방 묶음을 쓴다. 이 문서의 3·5절이 그 자리를 짚어 둔다.
+- `setup.js` 의 갈래 이름은 `common/hooks/places.js` 의 `갈래들` 한 자리에서 온다 (ADR-022). 훅의 확정 조건 ② 와 같은 값이어야 하기 때문이다.

@@ -26,7 +26,7 @@ const 토큰 = { PL: 'tok-pl', member: 'tok-member' };
 function 띄운다(project = '시험') {
   const 방들 = [
     { id: 11, name: `prodev-${project}` },
-    { id: 12, name: `prodev-${project}/들이기` },
+    { id: 12, name: `prodev-${project}/files` },
   ];
   const 글들 = [];
   const 세션 = new Map([[토큰.PL, '김피엘'], [토큰.member, '김과제']]);
@@ -104,10 +104,10 @@ test('걸음 셋 — wait bot · expect then/else · 상한 1초 무응답 이 �
     actors: { PL: '김피엘', member: '김과제' }, bot: 'prodev-시험-비서',
     steps: [
       // s1 봇이 답한다 → expect 에 걸려 then 으로
-      { id: 's1', room: '들이기', author: 'member', text: '@TO(prodev-시험-비서) 자료입니다', wait: 'bot', timeout_s: 20,
+      { id: 's1', room: 'files', author: 'member', text: '@TO(prodev-시험-비서) 자료입니다', wait: 'bot', timeout_s: 20,
         expect: '확정',
-        then: [{ id: 's1a', room: '들이기', author: 'member', text: '확정', wait: 'none' }],
-        else: [{ id: 's1b', room: '들이기', author: 'member', text: '여기는 안 와야 한다', wait: 'none' }] },
+        then: [{ id: 's1a', room: 'files', author: 'member', text: '확정', wait: 'none' }],
+        else: [{ id: 's1b', room: 'files', author: 'member', text: '여기는 안 와야 한다', wait: 'none' }] },
       // s2 봇이 잠자코 있다 → 상한 1초 뒤 timeout
       { id: 's2', room: '본방', author: 'PL', text: '아무도 안 받는 글', wait: 'bot', timeout_s: 1 },
       // s3 안 기다린다
@@ -155,10 +155,10 @@ test('expect 가 안 걸리면 else 를 돈다', async () => {
   const 대본 = path.join(d, 'e.json'), 기록 = path.join(d, 'e.jsonl');
   fs.writeFileSync(대본, JSON.stringify({
     name: 'else', project: '시험', steps: [
-      { id: 's1', room: '들이기', author: 'member', text: '자료', wait: 'bot', timeout_s: 20,
+      { id: 's1', room: 'files', author: 'member', text: '자료', wait: 'bot', timeout_s: 20,
         expect: '확정',
-        then: [{ id: 't1', room: '들이기', author: 'member', text: 'then', wait: 'none' }],
-        else: [{ id: 'e1', room: '들이기', author: 'member', text: 'else', wait: 'none' }] },
+        then: [{ id: 't1', room: 'files', author: 'member', text: 'then', wait: 'none' }],
+        else: [{ id: 'e1', room: 'files', author: 'member', text: 'else', wait: 'none' }] },
     ],
   }));
   const 끈다 = 봇을붙인다(S, 12, '아직 모르겠습니다. 하나만 여쭙습니다');
@@ -178,7 +178,7 @@ test('첨부가 이름 그대로 올라간다', async () => {
   const 대본 = path.join(d, 'a.json'), 기록 = path.join(d, 'a.jsonl');
   fs.writeFileSync(대본, JSON.stringify({
     name: '첨부', project: '시험', steps: [
-      { id: 's1', room: '들이기', author: 'member', text: '자료', attach: ['data/yield.csv'], wait: 'none' },
+      { id: 's1', room: 'files', author: 'member', text: '자료', attach: ['data/yield.csv'], wait: 'none' },
     ],
   }));
   await 돌린다(대본, 기록, S.base);
