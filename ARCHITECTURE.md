@@ -21,7 +21,7 @@
 │  CLAUDE.md(포인터 + 열 줄)  스킬 12  에이전트 6(서브)      │
 │  훅 3: session-start · pre-compact · pre-reply           │
 │  스크립트: chat · count · index · find · peek · intake-copy · plot · setup · retro-cost │
-│  봇 폴더: handoff(열린 실) · threads/ · rooms.json · handoff-compact · memory │
+│  봇 폴더: handoff(열린 실) · threads/ · rooms.json(방 이름표) · handoff-compact · memory │
 └────────────┬──────────────────────────────────────────────┘
              ▼ git
 ┌─ 과제 저장소 (과제마다 하나) ─────────────────────────────┐
@@ -183,9 +183,8 @@ NFC 정규화 · 조사 떼기(을/를/이/가/은/는/의/에/에서/로/으로
 ### 6.4 켜기 · 압축 · 끄기 (S0 · ADR-006 · 007 · 010)
 ```
 켜짐 ──▶ session-start: handoff-compact(있으면) → charter → schedule → handoff(열린 실) → threads/* → 어제 일지 → index 머리 30줄 → 마지막 일지 날짜
-      ──▶ 비서: rooms.json 의 방마다 chat.js since → 놓친 @TO 순서대로 → 방에 "이어서 합니다" 한 줄
+      ──▶ 비서: 서버가 재배달한 놓친 @TO 를 순서대로 → 방에 "이어서 합니다" 한 줄
 압축 직전 ──▶ pre-compact: 기록 꼬리 → claude -p (sonnet, 빈 cwd, PRODEV_HOOK=1) → handoff-compact.md · 방에 "정리 중" (알림 계정)
-매 턴 첫머리 ──▶ rooms.json 갱신 (처리한 마지막 id)
 끄기 전 ──▶ journal (cron 또는 사람) ──▶ 커밋
 ```
 
