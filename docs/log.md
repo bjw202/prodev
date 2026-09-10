@@ -227,4 +227,4 @@
 
 | 커밋 | 무엇 |
 |---|---|
-| `SETUP_COMMIT` | `setup.js` · 시험 셋 · ADR-023 · 문서 넷 |
+| `adc4df9` | `setup.js` · 시험 셋 · ADR-023 · 문서 넷 |
