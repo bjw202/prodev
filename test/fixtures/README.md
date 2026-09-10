@@ -8,11 +8,12 @@
 |---|---|
 | `cards/` 12 | E-0001~E-0009 · R-0001 · D-0001 정상 10 (E-0006 은 `status: void`, E-0007 의 `supersedes` 가 가리킨다) + **E-0010 은 머리말이 닫히지 않은 깨진 파일** |
 | `wiki/` 2 | `yield-recovery.md` · `showerhead.md` (문장마다 카드 번호) |
-| `inbox/20260825-yield-by-lot/files.md` | 5층 시험용 사이드카 |
+| `inbox/20260825-yield-by-lot/files.md` | 4층 시험용 사이드카 (2026-09-10 고침 전엔 5층) |
 | `questions.json` | 물음 10 · 조사 변형 3 · 없는 것 1, 기대 층과 경로. `index_기대` 에 표 행 수 11 · errors 1 · `next E` = E-0011 |
 
 주의 셋.
-- 4층(대화)은 `../chat/minidiscord.db` 를 `MINIDISCORD_DB` 로 가리켜 `chat.js search` 로 잰다. 기대는 `#2` (본문에 "출석체크").
+- 5층(대화)은 `../chat/minidiscord.db` 를 `MINIDISCORD_DB` 로 가리켜 `chat.js search` 로 잰다. 기대는 `#2` 가 **결과 안에 든다** (본문에 "출석체크". #1·#15·#43 도 걸린다).
+- **2026-09-10 고침**: 층 순서를 1 index · 2 카드 · 3 위키 · **4 inbox files.md · 5 대화** 로 바꿨다 (ADR-016). 까닭: `particle_defects` 가 대화 층에서 봇이 붙여넣은 코드 17건에 걸려 files.md 에 닿지 못했다. meta 의 참고 판별기가 대화 층을 실제 DB 로 재지 않은 것이 원인이다 (fixture 결함, 제작 세션이 T1.3 착수 전에 찾음).
 - "샤워헤드 교체 후 수율"·"샤워헤드교체는 수율이" 는 1층에서 E-0006(void) 과 E-0007 이 함께 걸린다. void 는 supersedes 를 따라가므로 결과는 E-0007 하나여야 한다.
 - `next E` 는 파일 이름 `E-\d{4}` 의 최댓값 + 1 이다. 머리말이 깨진 E-0010 도 이름은 센다. 그래야 번호가 재사용되지 않는다.
 - meta 가 참고 판별기(NFC · 조사 떼기 · 접기 · AND)로 14건 전부를 검산했다 (2026-09-10).

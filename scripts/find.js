@@ -7,8 +7,10 @@
 //   1 index.json 의 title · aliases · tags   → 카드 경로
 //   2 cards/*.md 본문                         → 카드 경로 + 행
 //   3 wiki/*.md                               → 페이지 + 행
-//   4 chat.js search (AND)                    → #message_id
-//   5 inbox/*/files.md · 원본                 → 사이드카 경로 + 행
+//   4 inbox/*/files.md                        → 사이드카 경로 + 행
+//   5 chat.js search (AND)                    → #message_id (여러 건, 최근 것부터, ≤10)
+//
+// 파일이 대화보다 먼저다 (ADR-016). 대화에는 봇이 붙여넣은 코드가 섞여 사이드카를 가린다.
 //
 // 맞대보기 전에 양쪽을 고른다: NFC · 소문자 · 하이픈과 공백 접기.
 // 물음의 낱말에서는 조사(을/를/이/가/은/는/의/에/에서/로/으로/와/과/도)를 뗀다.
@@ -146,7 +148,7 @@ function layer3(root, idx, ts) {
   return hits;
 }
 
-function layer4(ts, limit) {
+function layerChat(ts, limit) {
   // chat.js 에 낱말을 그대로 넘긴다. AND 와 NFC 는 거기가 맡는다 (층마다 두 번 하지 않는다).
   const args = [path.join(REPO, 'scripts', 'chat.js'), 'search', ...ts.map(t => t.word), '--limit', String(limit), '--json'];
   let out;
@@ -165,7 +167,7 @@ function layer4(ts, limit) {
   }));
 }
 
-function layer5(root, idx, ts) {
+function layerInbox(root, idx, ts) {
   const hits = [];
   for (const b of idx.inbox) {
     if (b.sidecar) {
@@ -203,8 +205,8 @@ const LAYER_NAME = {
   1: 'index (title·aliases·tags)',
   2: '카드 본문',
   3: '위키',
-  4: '대화',
-  5: 'inbox 사이드카 · 원본',
+  4: 'inbox 사이드카 · 원본',
+  5: '대화',
 };
 
 function find(question, opt) {
@@ -218,8 +220,8 @@ function find(question, opt) {
     [1, () => layer1(idx, ts)],
     [2, () => layer2(root, idx, ts)],
     [3, () => layer3(root, idx, ts)],
-    [4, () => layer4(ts, limit)],
-    [5, () => layer5(root, idx, ts)],
+    [4, () => layerInbox(root, idx, ts)],
+    [5, () => layerChat(ts, limit)],
   ];
   for (const [n, fn] of run) {
     const hits = fn();

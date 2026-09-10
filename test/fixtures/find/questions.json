@@ -1,5 +1,5 @@
 {
-  "설명": "find.js 시험. 층: 1 index(title·aliases·tags) · 2 카드 본문 · 3 위키 · 4 대화(chat.js, fixtures/chat/minidiscord.db) · 5 inbox files.md. path 는 fixtures/find/ 기준. void 는 supersedes 를 따라간 결과를 적는다.",
+  "설명": "find.js 시험. 층: 1 index(title·aliases·tags) · 2 카드 본문 · 3 위키 · 4 inbox files.md · 5 대화(chat.js, fixtures/chat/minidiscord.db). path 는 fixtures/find/ 기준. void 는 supersedes 를 따라간 결과를 적는다. 5층(대화)의 path 는 '결과 안에 든다' 로 잰다 (층은 정확히 일치, #id 는 포함). 2026-09-10 고침: 4·5층 순서를 바꿨다 (ADR-016, 파일이 대화보다 먼저).",
   "물음": [
     {
       "q": "샤워헤드 교체 후 수율",
@@ -39,13 +39,15 @@
     },
     {
       "q": "출석체크",
-      "layer": 4,
-      "path": "#2"
+      "layer": 5,
+      "path": "#2",
+      "note": "대화 층은 여러 건이 나온다. #2 가 결과 안에 있으면 맞다 (#1·#15·#43 도 같이 나와도 된다)"
     },
     {
       "q": "particle_defects",
-      "layer": 5,
-      "path": "inbox/20260825-yield-by-lot/files.md"
+      "layer": 4,
+      "path": "inbox/20260825-yield-by-lot/files.md",
+      "note": "대화(5층)에도 봇이 붙여넣은 코드 17건이 있지만 4층(files.md)이 먼저 답한다"
     },
     {
       "q": "샤워헤드초판",
