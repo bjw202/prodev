@@ -142,6 +142,24 @@ function 알린다(방번호) {
   }
 }
 
+// 어느 방에 알리나. 봉투의 chat_id → env → rooms.json 의 본방 차례로 본다.
+//
+// PreCompact 입력에는 chat_id 가 없다 (압축은 방에서 오는 일이 아니다). setup.js 도 env 에
+// 방 번호를 넣지 않는다 — 설치할 때는 방이 아직 없고, 방은 `setup.js rooms` 가 나중에 만든다.
+// 그래서 앞의 둘이 비면 알림이 조용히 건너뛰었다 (T3.M · R5 재측정에서 두 번 걸렸다).
+//
+// rooms.json 을 읽는 것이 순서에 기대지 않는 길이다. 그 파일은 방 이름표이고(ADR-021),
+// 본방은 이름에 갈래(`/…`)가 없는 방 하나다.
+function 본방번호() {
+  try {
+    const 봇 = P.botDir();
+    if (!봇) return null;
+    const j = JSON.parse(fs.readFileSync(path.join(봇, 'rooms.json'), 'utf8'));
+    const 본방 = (j.rooms || []).find(r => r && r.name && P.roomParts(r.name).갈래 === null);
+    return 본방 && 본방.id != null ? String(본방.id) : null;
+  } catch { return null; }
+}
+
 // 봇 폴더의 .env 에서 PRODEV_NOTIFY_TOKEN 을 읽는다. 없으면 null — 알림은 건너뛴다.
 function 봇폴더토큰() {
   try {
@@ -200,7 +218,7 @@ function main() {
 
   try { fs.writeFileSync(낼곳, 본문); } catch {}
 
-  const 방번호 = 들어온것.chat_id || process.env.PRODEV_NOTIFY_ROOM;
+  const 방번호 = 들어온것.chat_id || process.env.PRODEV_NOTIFY_ROOM || 본방번호();
   const 알림 = 알린다(방번호);
   try { fs.appendFileSync(`${낼곳}.log`, `${결과.때}\t${결과.까닭 || 'ok'}\t알림:${알림}\n`); } catch {}
 

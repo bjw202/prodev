@@ -41,7 +41,7 @@ prodev/
 | 파일 | 사건 | 하는 것 | 실패했을 때 |
 |---|---|---|---|
 | `session-start.js` | SessionStart (startup·resume·clear·compact) | 파일 일곱을 순서대로 `additionalContext` 로. **없음·못 읽음·잘림을 말로 가른다** | fail-open (exit 0) |
-| `pre-compact.js` | PreCompact | 기록 꼬리 → `claude -p` 요약 → `handoff-compact.md`, 방에 "정리 중" (알림 계정) | fail-open. 못 썼으면 "못 썼다"를 파일에 적는다 |
+| `pre-compact.js` | PreCompact | 기록 꼬리 → `claude -p` 요약 → `handoff-compact.md`, **본방**에 "정리 중" (알림 계정. 방은 `chat_id` → env → `rooms.json` 의 본방) | fail-open. 못 썼으면 "못 썼다"를 파일에 적는다 |
 | `pre-reply.js` | PreToolUse `mcp__minidiscord-channel__reply` | 다섯을 차례로 본다 (아래) | 막을 때 **exit 2 + stderr 한 줄**. 통과는 exit 0 무언 |
 | `places.js` | (모듈) | 봇 폴더 · 과제 폴더 · DB · 방 이름을 env 로 찾는다 | 모르면 `null` — 부르는 쪽이 정한다 |
 
@@ -87,7 +87,7 @@ DB 를 못 열면 `/자료` 방만 fail-closed. 방 갈래를 DB 로도 `rooms.j
 | `PRODEV_BOT_DIR` | places.js | 있으면 이것이 이긴다 |
 | `PRODEV_HANDOFF` | places.js | 없으면 `<봇폴더>/handoff-compact.md` |
 | `PRODEV_NOTIFY_TOKEN` | pre-compact.js · cron 두 줄 | 알림 계정의 `md_session` 값. 없으면 봇 폴더 `.env` → 그것도 없으면 알림 건너뜀 (ADR-018) |
-| `PRODEV_NOTIFY_ROOM` | pre-compact.js | 봉투의 `chat_id` 가 먼저. 둘 다 없으면 알림 건너뜀 |
+| `PRODEV_NOTIFY_ROOM` | pre-compact.js | 봉투의 `chat_id` 가 먼저 → env → `rooms.json` 의 본방. 셋 다 없으면 알림 건너뜀 |
 | `PRODEV_INTAKE_ROOTS` | intake-copy.js | 없으면 `MINIDISCORD_BOT_FILES_DIR`, 그것도 없으면 막지 않는다 |
 | `PRODEV_AUTOCOMPACT` | setup.js | 650000 |
 | `PRODEV_FAKE_CLAUDE` | pre-compact.js | 시험용. 요약을 부르지 않는다 |
@@ -102,14 +102,14 @@ DB 를 못 열면 `/자료` 방만 fail-closed. 방 갈래를 DB 로도 `rooms.j
 
 ## 7. 시험 묶음
 
-`npm test` — 서버가 필요 없다. **84건 · 0 실패.**
+`npm test` — 서버가 필요 없다. **87건 · 0 실패.**
 
 | 파일 | 건수 | 무엇을 |
 |---|---|---|
 | `chat.test.js` | 10 | fixture DB 하나로 여섯 명령 |
 | `count.test.js` | 4 | 세는 법 하나 |
 | `find.test.js` | 16 | 층 다섯 · 조사 떼기 · void 따라가기 |
-| `hooks.test.js` | 28 | session-start 5 · pre-compact 5 + 알림 3 · pre-reply 15 |
+| `hooks.test.js` | 31 | session-start 5 · pre-compact 5 + 알림 6 · pre-reply 15 |
 | `index.test.js` | 8 | 머리말 부분집합 · `next` · errors |
 | `intake.test.js` | 9 | 뿌리 밖 거절 · `.v2` · 0444 · 서버 저장명의 uuid 벗기기 셋 |
 | `peek.test.js` | 5 | csv · xlsx · pdf · jpg · 모르는 형식 |
@@ -137,6 +137,7 @@ cd <임시>/사본 && MINIDISCORD_DIR=<실제 minidiscord> npm run test:server
 | 확정 어휘를 봉투 벗긴 뒤에 본다 | 사람 글은 언제나 `@TO(…)` 로 시작한다. 안 벗기면 확정이 영영 안 된다 | ADR-008 보충 |
 | 봇 `settings.json` 의 env 에 `MINIDISCORD_URL` | 없으면 훅이 기본 3000 을 보고 알림을 조용히 건너뛴다 | — |
 | intake 가 서버 저장명의 uuid 를 벗긴다 | 안 벗기면 같은 파일이 이름만 다른 채 둘이 된다 (`.v2` 가 안 걸린다) | — |
+| 압축 알림의 방을 `rooms.json` 의 본방에서 찾는다 | PreCompact 입력에 `chat_id` 가 없고 `setup.js` 는 설치 때 방 번호를 모른다 (방은 나중에 만든다) | — |
 
 ## 9. 아직 그대로인 것 (알고 두는 것)
 

@@ -371,3 +371,59 @@ test('pre-compact 알림 — 토큰을 봇 폴더의 .env 에서도 읽는다 (�
   assert.strictEqual(S.받은것.length, 1, '.env 의 토큰을 못 읽었다');
   assert.strictEqual(S.받은것[0].cookie, `md_session=${env토큰}`, '따옴표를 안 벗겼다');
 });
+
+test('pre-compact 알림 — 방 번호를 rooms.json 의 본방에서 찾는다 (env 도 chat_id 도 없을 때)', async () => {
+  // R5 재측정에서 알림이 또 건너뛰었다. URL 은 고쳤는데 **방 번호**가 비어 있었다:
+  // PreCompact 입력에 chat_id 가 없고, setup.js 는 env 에 방 번호를 넣지 않는다
+  // (설치할 때는 방이 아직 없다). rooms.json 을 읽는 것이 그 순서에 안 기대는 길이다.
+  //
+  // ead4807 의 시험은 settings 의 값만 봤다. 여기서는 **모의 서버가 실제로 받은 요청**을 본다.
+  const S = await 받아적는서버();
+  const 봇폴더 = tmp('본방찾기');
+  fs.writeFileSync(path.join(봇폴더, '.env'), `PRODEV_NOTIFY_TOKEN=${진짜꼴토큰}\n`);
+  fs.writeFileSync(path.join(봇폴더, 'rooms.json'), JSON.stringify({
+    과제: '시험', rooms: [
+      { id: 41, name: 'prodev-시험', last_seen_id: 0 },              // 본방 — 갈래가 없다
+      { id: 42, name: 'prodev-시험/들이기', last_seen_id: 0 },
+      { id: 43, name: 'prodev-시험/자료', last_seen_id: 0 },
+    ],
+  }));
+
+  const r = await 압축훅({ MINIDISCORD_URL: S.url, PRODEV_NOTIFY_TOKEN: '', PRODEV_NOTIFY_ROOM: '', PRODEV_BOT_DIR: 봇폴더 });
+  S.srv.close();
+
+  assert.strictEqual(r.code, 0);
+  assert.strictEqual(S.받은것.length, 1, '알림이 안 나갔다 (방 번호를 못 찾았다)');
+  const q = S.받은것[0];
+  assert.strictEqual(q.url, '/api/rooms/41/messages', `본방이 아닌 데로 갔다: ${q.url}`);
+  assert.strictEqual(q.cookie, `md_session=${진짜꼴토큰}`);
+  assert.match(q.ctype, /^multipart\/form-data/);
+  assert.match(q.body, /정리 중/, '본문이 안 실렸다');
+});
+
+test('pre-compact 알림 — chat_id 와 env 가 rooms.json 보다 먼저다', async () => {
+  const S = await 받아적는서버();
+  const 봇폴더 = tmp('차례');
+  fs.writeFileSync(path.join(봇폴더, '.env'), `PRODEV_NOTIFY_TOKEN=${진짜꼴토큰}\n`);
+  fs.writeFileSync(path.join(봇폴더, 'rooms.json'), JSON.stringify({
+    과제: '시험', rooms: [{ id: 41, name: 'prodev-시험', last_seen_id: 0 }],
+  }));
+  const r = await 압축훅({ MINIDISCORD_URL: S.url, PRODEV_NOTIFY_TOKEN: '', PRODEV_NOTIFY_ROOM: '77', PRODEV_BOT_DIR: 봇폴더 });
+  S.srv.close();
+  assert.strictEqual(r.code, 0);
+  assert.strictEqual(S.받은것[0].url, '/api/rooms/77/messages', 'env 가 rooms.json 에 밀렸다');
+});
+
+test('pre-compact 알림 — rooms.json 에 본방이 없으면 아무 데도 안 보낸다', async () => {
+  // 갈래 방만 있으면 어디에 알릴지 모른다. 아무 방에나 던지지 않는다.
+  const S = await 받아적는서버();
+  const 봇폴더 = tmp('본방없음');
+  fs.writeFileSync(path.join(봇폴더, '.env'), `PRODEV_NOTIFY_TOKEN=${진짜꼴토큰}\n`);
+  fs.writeFileSync(path.join(봇폴더, 'rooms.json'), JSON.stringify({
+    과제: '시험', rooms: [{ id: 42, name: 'prodev-시험/들이기', last_seen_id: 0 }],
+  }));
+  const r = await 압축훅({ MINIDISCORD_URL: S.url, PRODEV_NOTIFY_TOKEN: '', PRODEV_NOTIFY_ROOM: '', PRODEV_BOT_DIR: 봇폴더 });
+  S.srv.close();
+  assert.strictEqual(r.code, 0, '알림이 압축을 막지 않는다');
+  assert.strictEqual(S.받은것.length, 0, '본방이 없는데 어딘가로 보냈다');
+});
