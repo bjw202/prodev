@@ -236,6 +236,15 @@ test('setup — bots/<이름>/.claude/settings.json 에 훅 셋과 env 셋이 �
   assert.ok(s.permissions.additionalDirectories.length >= 2);
 });
 
+test('setup settings — env 에 MINIDISCORD_URL 이 있다 (훅이 방에 알릴 수 있게)', () => {
+  // T3.M 재생에서 pre-compact 훅 로그가 "서버나 알림 계정이 없다" 였다.
+  // 훅은 process.env.MINIDISCORD_URL 을 보는데 봇 설정에 그것이 없어 기본 3000 을 봤고,
+  // 시험 서버는 딴 포트였다. 알림은 fail-open 이라 조용히 건너뛴다 — 그래서 시험으로 못을 박는다.
+  const s = JSON.parse(fs.readFileSync(path.join(상태.botDir, '.claude', 'settings.json'), 'utf8'));
+  assert.strictEqual(s.env.MINIDISCORD_URL, 상태.url, 'env 의 서버 주소가 실제와 다르다');
+  assert.ok(!/\{\{|\}\}/.test(s.env.MINIDISCORD_URL), '틀의 자리표시자가 안 바뀌었다');
+});
+
 test('setup settings — deny 가 과제 폴더를 덮지 않는다 (ADR-019)', () => {
   // R1 재생에서 실제로 겪은 것: 파일 뿌리(MINIDISCORD_BOT_FILES_DIR)가 과제 저장소들의 부모인데
   // 그것을 통째로 deny 하는 바람에 봇이 charter.md 를 못 썼다. 헌장을 다 만들고도 남기지 못했다.

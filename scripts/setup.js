@@ -187,6 +187,9 @@ async function install(opt) {
     .replace(/\{\{PRODEV_DIR\}\}/g, esc(PRODEV))
     .replace(/\{\{BOT_NAME\}\}/g, 봇)
     .replace(/\{\{DB\}\}/g, esc(DB))
+    // 훅이 방에 알릴 때 쓴다. 없으면 기본 3000 을 보고, 시험 서버가 딴 포트면 조용히 건너뛴다
+    // (T3.M 재생에서 훅 로그가 "서버나 알림 계정이 없다" 였다).
+    .replace(/\{\{URL\}\}/g, esc(URL_))
     .replace(/\{\{STATUSLINE\}\}/g, esc(path.join(PRODEV, 'common', 'statusline.sh')))
     .replace(/\{\{PATH\}\}/g, esc(BOT_PATH))
     .replace('"{{AUTOCOMPACT}}"', String(AUTOCOMPACT)));

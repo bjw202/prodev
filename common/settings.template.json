@@ -57,7 +57,8 @@
     "PATH": "{{PATH}}",
     "PRODEV_BOT": "{{BOT_NAME}}",
     "PRODEV_PROJECT": "{{PROJECT_DIR}}",
-    "MINIDISCORD_DB": "{{DB}}"
+    "MINIDISCORD_DB": "{{DB}}",
+    "MINIDISCORD_URL": "{{URL}}"
   },
   "statusLine": { "type": "command", "command": "{{STATUSLINE}}" },
   "autoCompactEnabled": true,
