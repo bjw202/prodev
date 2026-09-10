@@ -1,0 +1,90 @@
+{
+  "설명": "find.js 시험. 층: 1 index(title·aliases·tags) · 2 카드 본문 · 3 위키 · 4 대화(chat.js, fixtures/chat/minidiscord.db) · 5 inbox files.md. path 는 fixtures/find/ 기준. void 는 supersedes 를 따라간 결과를 적는다.",
+  "물음": [
+    {
+      "q": "샤워헤드 교체 후 수율",
+      "layer": 1,
+      "path": "cards/E-0007.md"
+    },
+    {
+      "q": "특별 세정 효과",
+      "layer": 1,
+      "path": "cards/E-0005.md"
+    },
+    {
+      "q": "원인 판정",
+      "layer": 1,
+      "path": "cards/D-0001.md"
+    },
+    {
+      "q": "BSTech O-링",
+      "layer": 2,
+      "path": "cards/E-0003.md"
+    },
+    {
+      "q": "규격을 1.22배",
+      "layer": 2,
+      "path": "cards/E-0002.md"
+    },
+    {
+      "q": "1.16%p 출처",
+      "layer": 3,
+      "path": "wiki/yield-recovery.md",
+      "note": "E-0007 은 1.16%p 만, R-0001 은 출처만 있다. AND 라서 위키만 걸린다"
+    },
+    {
+      "q": "표면 거칠기 측정값",
+      "layer": 3,
+      "path": "wiki/showerhead.md"
+    },
+    {
+      "q": "출석체크",
+      "layer": 4,
+      "path": "#2"
+    },
+    {
+      "q": "particle_defects",
+      "layer": 5,
+      "path": "inbox/20260825-yield-by-lot/files.md"
+    },
+    {
+      "q": "샤워헤드초판",
+      "layer": 1,
+      "path": "cards/E-0007.md",
+      "note": "E-0006 은 void → supersedes 를 따라 E-0007"
+    }
+  ],
+  "조사_변형": [
+    {
+      "q": "샤워헤드교체는 수율이",
+      "layer": 1,
+      "path": "cards/E-0007.md"
+    },
+    {
+      "q": "특별세정은 효과가",
+      "layer": 1,
+      "path": "cards/E-0005.md"
+    },
+    {
+      "q": "원인판정의",
+      "layer": 1,
+      "path": "cards/D-0001.md"
+    }
+  ],
+  "없는_것": [
+    {
+      "q": "레이저 어닐링",
+      "layer": null,
+      "path": null
+    }
+  ],
+  "index_기대": {
+    "표_행수": 11,
+    "errors": 1,
+    "errors_파일": [
+      "cards/E-0010.md"
+    ],
+    "next_E": "E-0011",
+    "next_E_규칙": "파일 이름 E-\\d{4} 의 최댓값 + 1 (머리말이 깨진 파일도 이름은 센다)"
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__minidiscord-channel__reply",
+      "mcp__minidiscord-channel__fetch_history",
+      "Read",
+      "Agent",
+      "WebSearch",
+      "WebFetch",
+      "Edit({{ROOMS}}/*/{{BOT}}/**)",
+      "Write({{ROOMS}}/*/{{BOT}}/**)",
+      "Edit({{CREW}}/bots/{{BOT}}/**)",
+      "Write({{CREW}}/bots/{{BOT}}/**)",
+      "Write({{CREW}}/proposals/**)",
+      "Edit({{CREW}}/proposals/**)",
+      "Edit({{KNOWLEDGE}}/**)",
+      "Write({{KNOWLEDGE}}/**)",
+      "Bash(git:*)",
+      "Bash(gh:*)",
+      "Bash(grep:*)",
+      "Bash(ls:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(mkdir:*)",
+      "Bash(cp:*)",
+      "Bash(cat:*)",
+      "Bash(sed:*)",
+      "Bash(diff:*)",
+      "Bash(find:*)",
+      "Bash(sort:*)",
+      "Bash(uniq:*)",
+      "Bash(awk:*)",
+      "Bash(date:*)",
+      "Bash(python3:*)",
+      "Bash(node:*)"
+    ],
+    "deny": [
+      "{{DENY_OTHERS}}",
+      "Edit({{CREW}}/bots/{{BOT}}/.claude/settings.json)",
+      "Edit({{CREW}}/bots/{{BOT}}/.env)",
+      "Edit({{CREW}}/bots/{{BOT}}/.mcp.json)",
+      "Edit({{CREW}}/common/hooks/**)",
+      "{{DENY_KNOWLEDGE}}"
+    ],
+    "additionalDirectories": ["{{ROOMS_DIR}}", "{{KNOWLEDGE_DIR}}", "{{PROPOSALS_DIR}}"]
+  },
+  "env": { "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1", "PATH": "{{PATH}}" },
+  "statusLine": { "type": "command", "command": "{{STATUSLINE}}" },
+  "autoCompactEnabled": true,
+  "autoCompactWindow": "{{AUTOCOMPACT}}",
+  "hooks": {
+    "SessionStart": [
+      { "matcher": "startup|resume|clear|compact",
+        "hooks": [ { "type": "command", "command": "node ../../common/hooks/session-start.js" } ] }
+    ]
+  }
+}

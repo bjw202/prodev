@@ -1,0 +1,34 @@
+# fixtures — meta 가 prodev 1단계에 주는 시험 자료 (2026-09-10)
+
+만든 스크립트는 meta 세션의 임시 폴더에 있었고 여기엔 결과만 있다. 다시 만들 일이 있으면 이 README 의 규격대로 만든다.
+**prodev 에 주는 법**: 이 폴더를 통째로 `prodev/test/fixtures/` 로 복사한다. 여기 있는 것은 전부 "입력과 기대"이고 3단계 정답지(대본 채점표)는 아직 없다.
+
+## find/ — index.js · find.js 시험 (T1.3)
+| 무엇 | 내용 |
+|---|---|
+| `cards/` 12 | E-0001~E-0009 · R-0001 · D-0001 정상 10 (E-0006 은 `status: void`, E-0007 의 `supersedes` 가 가리킨다) + **E-0010 은 머리말이 닫히지 않은 깨진 파일** |
+| `wiki/` 2 | `yield-recovery.md` · `showerhead.md` (문장마다 카드 번호) |
+| `inbox/20260825-yield-by-lot/files.md` | 5층 시험용 사이드카 |
+| `questions.json` | 물음 10 · 조사 변형 3 · 없는 것 1, 기대 층과 경로. `index_기대` 에 표 행 수 11 · errors 1 · `next E` = E-0011 |
+
+주의 셋.
+- 4층(대화)은 `../chat/minidiscord.db` 를 `MINIDISCORD_DB` 로 가리켜 `chat.js search` 로 잰다. 기대는 `#2` (본문에 "출석체크").
+- "샤워헤드 교체 후 수율"·"샤워헤드교체는 수율이" 는 1층에서 E-0006(void) 과 E-0007 이 함께 걸린다. void 는 supersedes 를 따라가므로 결과는 E-0007 하나여야 한다.
+- `next E` 는 파일 이름 `E-\d{4}` 의 최댓값 + 1 이다. 머리말이 깨진 E-0010 도 이름은 센다. 그래야 번호가 재사용되지 않는다.
+- meta 가 참고 판별기(NFC · 조사 떼기 · 접기 · AND)로 14건 전부를 검산했다 (2026-09-10).
+
+## hooks/ — pre-reply.js · pre-compact.js 시험 (T1.5)
+| 무엇 | 내용 |
+|---|---|
+| `fixture.db` | minidiscord 스키마(2026-09-10 `db.ts`) 그대로. 사람 둘(김피엘 = PL, 김과제), 봇 하나, 방 넷(1 본방 · 2 들이기 · 3 자료 · 4 보고), 글 10, 첨부 2 |
+| `project/charter.md` | `PL: 김피엘` |
+| `project/cards/E-0001~E-0007` | 확정 조건을 하나씩 어긴 카드들 (E-0001 만 정상) |
+| `pre-reply-cases.json` | 13건. `chat_id` · `text` 와 기대 exit. 막을 것 10 · 통과 3 |
+| `transcript-40.jsonl` | 합성 기록 40턴. thinking 블록과 긴 tool_result 가 섞여 있다 |
+| `handoff-compact-expected.md` | pre-compact 결과의 6칸에 들어 있어야 하는 것과 금지 |
+
+환경변수 약속: `MINIDISCORD_DB=<fixture.db>` · `PRODEV_PROJECT=<project 폴더>` · `PRODEV_FAKE_CLAUDE=1`(pre-compact 가 `claude -p` 대신 고정 출력을 쓰게).
+결재 검사의 표식은 보고 방 글의 `결재 #<id>` 이고, 그 글의 작성자가 charter 의 PL 과 같아야 통과다 (#5 는 PL, #6 은 과제원).
+
+## chat/ — chat.js 시험 (T1.2)
+`minidiscord.db` 하나. 2026-09-08~09 crew 방(수율개선-2026q3)의 실제 대화 377건을 WAL 을 합쳐 파일 하나로 만든 사본이다. 서버와 무관하다. 기대 건수는 prodev 가 이 사본으로 직접 세어 시험에 적는다 (예: `search 샤워헤드 --limit 4` → 4건, `around 300 --before 2 --after 2` → 5건, `show 2` 의 첨부 0).

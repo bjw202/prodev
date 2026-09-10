@@ -1,0 +1,14 @@
+{
+  "name": "prodev",
+  "version": "0.1.0",
+  "private": true,
+  "description": "공정개발 과제 비서 — minidiscord 채팅방에서 PL 과 과제원을 잇는다",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.js\"",
+    "test:server": "node --test \"test/server/*.test.js\""
+  }
+}
