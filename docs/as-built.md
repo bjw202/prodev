@@ -32,7 +32,7 @@ prodev/
 | `peek.js` | 파일 겉을 본다 | 파일 → 행 수 · 열 이름 · 앞 5행 · 형식 | intake |
 | `intake-copy.js` | 첨부를 inbox 로 들인다 | slug + 파일들 → inbox 폴더 · `.v2` · SHA-256 · `files.md` · 원본 0444. 서버 저장명이면 uuid 앞머리를 벗겨 원래 이름으로 | intake |
 | `plot.py` | csv 한 열을 그림으로 | csv + 열 → `<과제>/tmp/*.png` (없으면 한 줄 내고 exit 0) | intake |
-| `setup.js` | 설치 · 방 · cron · 보관 | (아래 5절) | 사람 |
+| `setup.js` | 과제 폴더 · 설치 · 방 · cron · 보관 | (아래 5절) | 사람 |
 | `retro-cost.js` | 세션 기록에서 값·승인 수 | 기록 → 숫자, `--record` | meta |
 | `replay.js` | 사람 역할을 API 로 재생 | 대본 JSON + 기록 JSONL 경로 → 기록 · exit 0/1 | meta (검수) |
 
@@ -69,7 +69,7 @@ DB 를 못 열거나 방을 몰라도 표식이 있으면 막는다 (카드 공�
 
 | 명령 | 만드는 것 |
 |---|---|
-| `setup.js [--project <과제폴더>]` | 과제 폴더의 하위 열 · 봇 폴더 · `.env`(봇 토큰) · `.claude/settings.json` · `.mcp.json`(토큰 있을 때만) |
+| `setup.js [--project <이름\|폴더>]` | **과제 폴더 자체**(없으면 만든다) · 하위 열 · `git init` · 봇 폴더 · `.env`(봇 토큰) · `.claude/settings.json` · `.mcp.json`(토큰 있을 때만). 이름만 주면 `$MINIDISCORD_BOT_FILES_DIR/<이름>` (ADR-023) |
 | `setup.js rooms <과제>` | 방 둘(본방 · `<과제>/files`) + 봇 참여 + `rooms.json` |
 | `setup.js cron` | crontab 두 줄을 stdout 으로 (쿠키 + `--form-string`, ADR-018) |
 | `setup.js archive <방>` | 방 하나 보관 |
@@ -97,7 +97,7 @@ DB 를 못 열거나 방을 몰라도 표식이 있으면 막는다 (카드 공�
 | `MINIDISCORD_DB` | places.js · chat.js | 없으면 `<minidiscord>/server/data/minidiscord.db` |
 | `MINIDISCORD_URL` | setup.js · pre-compact.js | `http://127.0.0.1:3000` |
 | `MINIDISCORD_DIR` | setup.js · 시험 | 없으면 저장소의 형제 `minidiscord` |
-| `MINIDISCORD_BOT_FILES_DIR` | setup.js · intake-copy.js | 봇 첨부 뿌리 = **과제 저장소들의 부모** |
+| `MINIDISCORD_BOT_FILES_DIR` | setup.js · intake-copy.js | 봇 첨부 뿌리 = **과제 저장소들의 부모**. `--project` 에 이름만 줬을 때 과제 폴더를 만드는 자리다 (ADR-023) |
 | `MINIDISCORD_USER` | setup.js · retro-cost.js | `prodev-setup` · `observer` |
 | `MINIDISCORD_SERVER` | setup.js (.mcp.json 에 박는다) | `ws://<URL>/bot` |
 | `REPLAY_TOKEN_PL` · `REPLAY_TOKEN_MEMBER` | replay.js | 없으면 **시작 전에 exit 1** |
@@ -118,7 +118,7 @@ DB 를 못 열거나 방을 몰라도 표식이 있으면 막는다 (카드 공�
 | `plot.test.js` | 2 | 그림 하나 · 안 죽는다 |
 | `smoke.test.js` | 2 | 부품·fixture 가 제자리 |
 
-`npm run test:server` — 진짜 minidiscord 를 임시로 띄운다. **20건 · 0 실패** (setup 12 · replay 8).
+`npm run test:server` — 진짜 minidiscord 를 임시로 띄운다. **23건 · 0 실패** (setup 15 · replay 8).
 **저장소 사본에서 돌린다.** `MINIDISCORD_DIR` 하나만 주면 된다:
 ```
 git archive HEAD | tar -x -C <임시>/사본 && cp -r node_modules <임시>/사본/
@@ -149,3 +149,4 @@ cd <임시>/사본 && MINIDISCORD_DIR=<실제 minidiscord> npm run test:server
 - cron 두 줄은 `setup.js cron` 이 내기만 한다. crontab 에 붙이는 것은 사람이 한다 (`docs/launch.md` 8절).
 - `bots/` 는 git 제외다. 봇 토큰은 서버 `bots` 표에도 평문으로 있어 잃어도 거기서 꺼낼 수 있다.
 - `setup.js` 의 갈래 이름은 `common/hooks/places.js` 의 `갈래들` 한 자리에서 온다 (ADR-022). 훅의 확정 조건 ② 와 같은 값이어야 하기 때문이다.
+- `git init` 이 실패해도 설치는 이어 간다 (ADR-023). 못 했다는 한 줄만 남긴다 — 커밋은 나중 일이고, 여기서 멈추면 봇을 못 띄운다.

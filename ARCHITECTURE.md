@@ -74,7 +74,7 @@ prodev/
   scripts/chat.js                  ../meta/prodev-review/plans/proto/chat.js 에서 (search 를 AND 로)
   scripts/count.js                 crew 그대로
   scripts/index.js  find.js  peek.js  intake-copy.js  plot.py     새로
-  scripts/setup.js                 crew 것을 고침 (봇 하나 · 방 둘 · cron · archive)
+  scripts/setup.js                 crew 것을 고침 (과제 폴더 · 봇 하나 · 방 둘 · cron · archive)
   scripts/retro-cost.js            crew 것을 봇 하나로
   scripts/replay.js                검수용. 사람 역할을 API 로 재생 (VERIFICATION 4절)
   bots/<이름>/                     setup 이 만든다. git 제외
@@ -226,7 +226,7 @@ pre-reply 의 확정 다섯 조건 (ADR-008): `confirmed_at` 글이 ① `author_
 | peek.js | 파일 → 행 수 · 열 이름 · 5행 · 형식 | intake |
 | intake-copy.js | 첨부 경로 → inbox 폴더 · `.v2` · SHA-256 · files.md 뼈대 | intake |
 | plot.py | csv 열 → `<과제>/tmp/*.png` | intake |
-| setup.js | 봇 등록 · settings 생성 · 방 둘 · 봇 참여 · cron · archive | 사람 |
+| setup.js | 과제 폴더(없으면 만들고 git init, ADR-023) · 봇 등록 · settings 생성 · 방 둘 · 봇 참여 · cron · archive | 사람 |
 | retro-cost.js | 세션 기록 → 값 · 승인 수 · `--record` | meta |
 | replay.js | 대본(JSON) → API 로 사람 글 재생 · 봇 답 수집 · 기록 | meta (검수) |
 

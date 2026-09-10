@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // setup.js — 사람이 돌린다. 봇은 이 파일을 쓰지 않는다.
 //
-//   node scripts/setup.js [--project <과제폴더>]   설치: 봇 폴더 · settings(훅 배선 · env 셋) · .env · .mcp.json
+//   node scripts/setup.js [--project <이름|폴더>]  설치: 과제 폴더(없으면 만들고 git init) · 봇 폴더 · settings(훅 배선 · env 셋) · .env · .mcp.json
 //   node scripts/setup.js rooms <과제>             방 둘을 만들고 봇을 둘 다 참여시킨다 (API)
 //   node scripts/setup.js cron                     crontab 두 줄을 낸다 (08:00 브리핑 · 18:30 일지, 쿠키 + multipart — ADR-018)
 //   node scripts/setup.js archive <방>             방 하나를 보관한다
@@ -91,10 +91,19 @@ process.env.PATH = BOT_PATH;
 
 // ── 이름과 자리 ───────────────────────────────────────────
 
+// --project 는 **이름**일 수도 **경로**일 수도 있다 (ADR-023).
+//   경로   '/' 가 들어 있거나 이미 있는 자리 → 그대로 쓴다 (지금까지와 같다)
+//   이름만 → <파일 뿌리>/<이름>. 과제 저장소는 언제나 파일 뿌리 안이어야 봇이 첨부할 수 있다 (ADR-019).
+// 사람이 "과제 하나 = projects 아래 폴더 하나" 로 정했으므로, 자리를 외우는 것은 사람이 아니라 setup 이다.
 function projectDir(opt) {
   const p = opt.project || process.env.PRODEV_PROJECT;
-  if (!p) throw new Error('과제 폴더를 모른다. --project <폴더> 를 주거나 PRODEV_PROJECT 를 설정하라');
-  return path.resolve(p);
+  if (!p) throw new Error('과제 폴더를 모른다. --project <이름 또는 폴더> 를 주거나 PRODEV_PROJECT 를 설정하라');
+  if (p.includes('/') || p.includes(path.sep) || fs.existsSync(p)) return path.resolve(p);
+  const 뿌리 = process.env.MINIDISCORD_BOT_FILES_DIR;
+  if (!뿌리) {
+    throw new Error(`--project 에 이름만("${p}") 주려면 MINIDISCORD_BOT_FILES_DIR 이 있어야 한다 (과제 저장소들의 부모). 없으면 폴더 경로를 그대로 줘라`);
+  }
+  return path.join(path.resolve(뿌리), p);
 }
 const 과제이름 = dir => path.basename(dir);
 const 봇이름 = 과제 => `prodev-${과제}-비서`;
@@ -116,6 +125,18 @@ const writeEnv = (f, kv) => fs.writeFileSync(f, Object.entries(kv).map(([k, v]) 
 function ensureDir(p, note) {
   if (!fs.existsSync(p)) { fs.mkdirSync(p, { recursive: true }); log(`만듦  ${p}${note ? '  (' + note + ')' : ''}`); }
   else log(`있음  ${p}`);
+}
+
+// 과제 폴더 하나 = git 저장소 하나 (ADR-003). 이미 git 이면 손대지 않는다 — 안의 것을 건드리지 않는다.
+// git 이 없거나 실패해도 설치를 멈추지 않는다: 커밋은 나중 일이고, 못 했다는 것만 말하면 된다.
+function ensureGit(dir) {
+  if (fs.existsSync(path.join(dir, '.git'))) { log(`있음  ${path.join(dir, '.git')}  (git)`); return; }
+  try {
+    execSync('git init -q', { cwd: dir, stdio: 'ignore' });
+    log(`만듦  ${path.join(dir, '.git')}  (git)`);
+  } catch (e) {
+    log(`!! git init 못 했다 (${String(e.message).split('\n')[0]}) — 손으로 \`git init\` 하라`);
+  }
 }
 
 // ── minidiscord API ───────────────────────────────────────
@@ -156,6 +177,7 @@ async function install(opt) {
   for (const d of ['cards', 'wiki', 'inbox', 'journal', 'threads', 'research', 'patent', 'paper', 'report', 'tmp']) {
     ensureDir(path.join(과제폴더, d));
   }
+  ensureGit(과제폴더);
   ensureDir(봇폴더, '토큰 · 설정 · 자기 상태');
   if (!fs.existsSync(CHANNEL)) log(`없음  ${CHANNEL}  ← minidiscord 에서 npm install && npm run build -w channel`);
 

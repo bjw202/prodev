@@ -67,13 +67,15 @@ MINIDISCORD_URL=http://127.0.0.1:3123 \
 MINIDISCORD_DIR=<루트>/minidiscord \
 MINIDISCORD_DB=<시험자리>/data/minidiscord.db \
 MINIDISCORD_BOT_FILES_DIR=<과제 저장소들의 부모> \
-  node scripts/setup.js --project <과제폴더>
+  node scripts/setup.js --project <과제이름>
 
 # 그다음 (같은 환경변수로)
 node scripts/setup.js rooms 시험
 ```
 
-`setup.js` 가 만드는 것: `bots/prodev-<과제>-비서/` 아래 `.env`(토큰) · `.claude/settings.json`(훅 셋 배선 · env 셋 · 허용 목록) · `.mcp.json` · `rooms.json`.
+`--project` 에는 **이름만** 주면 된다 (ADR-023). 그러면 `$MINIDISCORD_BOT_FILES_DIR/<이름>` 에 과제 폴더를 만들고 하위 열과 `git init` 까지 한다 — 폴더를 미리 만들 필요가 없다. 파일 뿌리 밖에 두고 싶으면 그때만 **경로**를 준다 (`/` 가 들어 있으면 경로로 본다). 있는 폴더에 다시 돌려도 안의 것은 건드리지 않는다.
+
+`setup.js` 가 만드는 것: 과제 폴더와 하위 열 · `git` · `bots/prodev-<과제>-비서/` 아래 `.env`(토큰) · `.claude/settings.json`(훅 셋 배선 · env 셋 · 허용 목록) · `.mcp.json` · `rooms.json`.
 방 둘은 `prodev-<과제>` (본방) 와 `prodev-<과제>/files` 다 (ADR-022).
 사람에게 한 줄로 알린다: **"말은 아무 데서나, 파일은 files 에."**
 
@@ -355,10 +357,10 @@ crontab -e                             # 그 두 줄을 붙인다
 |---|---|---|
 | 1 | `cd prodev && npm install` · `cd ../minidiscord && npm install && npm run build -w channel` | `ls minidiscord/channel/dist/index.js` |
 | 2 | **저장소 사본에서** `npm test` | `pass 94 · fail 0` |
-| 3 | 사본에서 `MINIDISCORD_DIR=<실제> npm run test:server` | `pass 20 · fail 0` |
+| 3 | 사본에서 `MINIDISCORD_DIR=<실제> npm run test:server` | `pass 23 · fail 0` |
 | 4 | 서버를 띄운다 (10.5) | `curl -sS http://127.0.0.1:3000/api/health` → `{"ok":true}` |
 | 5 | 브라우저로 계정 셋을 만든다 (10.6) | 방 화면이 보인다 |
-| 6 | `node scripts/setup.js --project <루트>/projects/<과제>` | 출력 ④ 에 "명령 N/N 풀림" · 못 찾은 명령 0 · `bots/<봇>/.mcp.json` 이 생김 |
+| 6 | `node scripts/setup.js --project <과제>` | `<루트>/projects/<과제>` 와 그 `.git` 이 생김 · 출력 ④ 에 "명령 N/N 풀림" · 못 찾은 명령 0 · `bots/<봇>/.mcp.json` 이 생김 |
 | 7 | `node scripts/setup.js rooms <과제>` | 방 둘 · `rooms.json` |
 | 8 | 알림 토큰을 `.env` 에 넣는다 (10.6) | |
 | 9 | 봇을 켠다 (4절 그대로) | 세션에 스킬 열셋과 에이전트 여섯이 보인다 |

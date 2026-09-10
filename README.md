@@ -12,7 +12,7 @@ minidiscord 채팅방에서 PL 과 과제원의 공정개발 과제를 **비서 
 | `ARCHITECTURE.md` | 어떻게 생겼나. 방 둘 · 저장소 둘 · 2nd brain 층 다섯 · 흐름 넷 · 훅 셋 · 스크립트 · 에이전트 · 스킬 | 만들기 전 |
 | `docs/as-built.md` | **지금 코드가 어떻게 생겼나.** 부품마다 한 줄 · 훅 · env 전부 · 시험 수 · 설계와 달라진 자리 | 고치기 전 |
 | `docs/log.md` | **제작 일지.** 단계마다 한 일 · 커밋 범위 · 관문 결과 · 관문 밖에서 고친 것 | 흐름을 알고 싶을 때 |
-| `ADR.md` | 왜 그렇게 정했나. 결정 열다섯과 근거 | "왜 이렇게 했지" 싶을 때 |
+| `ADR.md` | 왜 그렇게 정했나. 결정 스물셋과 근거 | "왜 이렇게 했지" 싶을 때 |
 | `TASKS.md` | 누가 언제 무엇을. 단계 넷 · 관문 넷 · meta 와 prodev 의 경계 | 일을 고를 때 |
 | `VERIFICATION.md` | 어떻게 검수하나. 층 A~D · 단위 시험 · 대본 다섯 · 예측표 | 관문마다 |
 
@@ -30,9 +30,12 @@ minidiscord 채팅방에서 PL 과 과제원의 공정개발 과제를 **비서 
 ## 돌리는 법
 
 ```
+node scripts/setup.js --project <과제이름>   과제 폴더(없으면 만들고 git init) · 봇 폴더 · 설정
 npm test              서버 없이 도는 시험 (스크립트 · 훅)
 npm run test:server   임시 minidiscord 서버를 띄우는 시험 (setup.js)
 ```
+
+과제 폴더 자리는 `MINIDISCORD_BOT_FILES_DIR` 아래다 (ADR-023). 이름만 주면 setup 이 만든다.
 
 ## 있어야 하는 것
 

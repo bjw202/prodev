@@ -74,7 +74,7 @@ status: draft            draft | active | closed
 
 ```
 node scripts/setup.js rooms <과제>     방 둘을 만들고 봇을 참여시킨다
-git init                                과제 저장소가 아직 git 이 아니면
+git init                                과제 저장소가 아직 git 이 아니면 (setup 이 이미 했으면 건너뛴다, ADR-023)
 ```
 방 둘은 본방 `prodev-<과제>` 와 `prodev-<과제>/files` 다 (ADR-022).
 사람에게 한 줄로 알린다: **"말은 아무 데서나, 파일은 files 에."**
