@@ -697,6 +697,7 @@ flowchart LR
 | `docs/log.md` | **제작 일지.** 단계마다 한 일 · 커밋 범위 · 관문 결과 | 흐름을 알고 싶을 때 |
 | `docs/skill-matrix.md` | 스킬 열넷이 설계와 같은지 칸칸이 대조한 표 (84칸) | 스킬을 고칠 때 |
 | `docs/harness-input.md` | `/harness:harness` 에 무엇을 주었나 | 스킬·에이전트를 다시 낼 때 |
+| `docs/evidence/` | **meta 의 판정 기록 사본 여덟.** 관문마다 직접 돌려 센 결과 | "이 결정이 무엇을 보고 나왔나" 싶을 때 |
 
 ## 자리
 
