@@ -33,22 +33,31 @@ const CLAUDE_ARGS = ['--setting-sources', 'project,local', '--strict-mcp-config'
 const { 갈래들: 갈래 } = require('../common/hooks/places.js');
 
 // ── 허용 목록은 왜 이 꼴인가 ──────────────────────────────────────────────
-// 바탕은 ../crew/common/settings.template.json 의 33건이다. 거기에 회차 5 의 승인 31회를 덮는 것을 더했다.
-// 31회는 항목 목록이 아니라 원인 넷이다 (../meta/crew-eval/notes/round-5-result.md 86~91행).
+// 바탕은 ../crew/common/settings.template.json 의 33건이었고, 거기에 회차 5 의 승인 31회를 덮는 것을
+// 더해 41건이었다. 31회는 항목 목록이 아니라 원인 넷이다 (../meta/crew-eval/notes/round-5-result.md 86~91행).
 // 승인이 뜨면 그 글이 마지막 to 방에 남아 방이 더러워진다. 그래서 미리 연다.
 //
+// **거기서 셸 도구 스물하나를 뺐다** (ADR-033). 지금은 22건이고 그중 Bash 는 열이다.
+// 뺀 까닭은 하나다 — 내장 도구가 이미 덮으므로 **봇이 할 수 있는 일이 줄지 않는다.**
+//   grep · find                                                  → Grep · Glob (allow 에 이름으로 넣었다)
+//   cat · head · tail · sed · awk · sort · uniq · wc · cut · tr
+//   · diff · stat · file                                         → Read
+//   cp · chmod · shasum · sha256sum                              → intake-copy.js 가 node 로 한다
+//                                                                  (복사 · 0444 잠금 · SHA-256)
+//   basename · dirname                                           → 경로는 봇이 그냥 안다
+// 스킬 열셋과 에이전트 여섯의 본문이 부르는 바깥 명령은 node · python3 · git 뿐이라 하나도 안 막힌다.
+//
+// 남은 열은 회차 5 의 원인 넷 가운데 아직 사는 것을 덮는다:
 //   원인 1  cd … && … · pwd; ls 로 이어 붙임          9회
-//           → Bash(cd:*) · Bash(pwd) · Bash(echo:*)
+//           → Bash(cd:*) · Bash(pwd) · Bash(ls:*) · Bash(echo:*)
 //           주의: 이어 붙인 명령 한 줄은 통째로 하나로 보이므로 허용 목록으로 다 덮이지 않는다.
 //           진짜 고침은 "이어 붙이지 않는다" 규칙이고 목록은 조각만 연다. 회차 5 도 규칙 쪽이 먹었다.
 //   원인 2  python3 - <<'PY'                          6회  → Bash(python3:*)
 //   원인 3  채팅 서버 업로드 폴더 읽기 (wc·ls·cp·sha)  8회
-//           → additionalDirectories 에 업로드 폴더 + Bash(shasum:*) · Bash(sha256sum:*) · Bash(file:*) · Bash(stat:*)
+//           → additionalDirectories 에 업로드 폴더 + Read · Grep · Glob
 //           봇 폴더 밖이라 목록에 있어도 물었다. 폴더를 열어 줘야 안 묻는다. 쓰기는 deny 로 막는다 (원본 불변).
-//   원인 4  chmod · grep $'\r' · gh pr create · 그 밖  8회
-//           → Bash(chmod:*) · Bash(tr:*) · Bash(gh:*) · Bash(grep:*)
-//
-// 들이기에서 실제로 쓰는 것도 같이 연다: Bash(cut:*) · Bash(basename:*) · Bash(dirname:*).
+//   원인 4  gh pr create · git · 그 밖                 8회  → Bash(gh:*) · Bash(git:*) · Bash(node:*)
+//                                                            · Bash(mkdir:*) · Bash(date:*)
 // 지우는 명령(rm · mv)은 열지 않는다 — 0층은 불변이고, 지우지 않고 void 로 남긴다.
 
 // ── PATH — crew 에서 그대로 가져온다. 까닭도 그대로다 ──────────────────────
@@ -88,6 +97,12 @@ function probe(pathValue) {
 
 const BOT_PATH = buildPath();
 process.env.PATH = BOT_PATH;
+
+// ── Git Bash — 윈도우에서 Bash 도구가 무엇을 부르는가 (ADR-033) ────────────
+// 봇은 --setting-sources project,local 이라 user 범위 설정을 못 읽는다. 그래서 WINDOWS.md 126행이
+// 적어 둔 길을 사람이 손으로 넣는 대신 **setup 이 봇 설정에 박는다.** 환경변수로 덮을 수 있다.
+// 맥·리눅스에서도 키는 남고 값도 비지 않는다 — 그 자리에 Git Bash 가 없으면 Claude Code 가 안 볼 뿐이라 무해하다.
+const GIT_BASH = process.env.CLAUDE_CODE_GIT_BASH_PATH || 'C:\\Program Files\\Git\\bin\\bash.exe';
 
 // ── 이름과 자리 ───────────────────────────────────────────
 
@@ -151,6 +166,110 @@ function ensureGit(dir) {
   }
 }
 
+// ── 과제 폴더 채우기 ──────────────────────────────────────
+
+// 사실이 쌓이는 자리(카드 · 위키 · 일지)는 처음부터 있었다. 여기 더한 넷은 **봇이 만들어 낸 것이
+// 굳는 자리**다 (ADR-032). 자리가 없으면 분석은 tmp/ 로 가고 규칙은 꽂힐 데가 없다.
+//   analysis/   분석 한 건 = 폴더 하나 (run.py · run.md). inbox/ 와 같은 꼴로 날짜와 이름을 묶는다
+//   templates/  가르친 양식. report 스킬이 여기서 읽는다
+//   house.md    이 과제에서 이 사람과 일하는 방식. session-start 훅이 여덟째로 싣는다 (상한 50줄)
+//   .gitignore  tmp/ 한 줄. 그림과 임시는 커밋하지 않는다 (ARCHITECTURE 4.2)
+const 과제폴더들 = ['cards', 'wiki', 'inbox', 'journal', 'threads', 'research', 'patent', 'paper', 'report', 'tmp',
+  'analysis', 'templates'];
+
+// house.md 를 빈 파일로 두지 않는다. 비어 있으면 봇도 사람도 여기에 무엇을 적는지 모르고,
+// 모르면 아무도 안 적어서 자리만 있고 쓰이지 않는다. 골격이 곧 사용법이다.
+// 소제목을 ### 로 두는 까닭: 훅이 이 파일을 "## 이 과제의 규칙" 절 안에 싣는다. ## 로 두면
+// 훅 자신의 절과 같은 높이로 보여 봇이 규칙을 훅의 절로 잘못 읽는다.
+// 머리에 "언제부터 · 누가 · 무엇을 보고" 를 못 박는 까닭은 되돌릴 수 있어야 하기 때문이다 —
+// 석 달 뒤 "왜 이렇게 됐지" 라는 물음이 반드시 온다. 정신은 ADR 과 같다.
+const HOUSE = `# 이 과제에서 일하는 방식
+
+여기 적힌 것은 **규칙**이다. 사실(헌장 · 일정 · 카드 · 일지)은 다른 파일에 있다.
+봇이 켜질 때마다 session-start 훅이 이 파일을 싣는다.
+
+**상한 50줄이다.** 넘으면 뒷부분이 안 실린다. 새 규칙을 넣을 때 낡은 규칙을 뺀다.
+넘쳤을 때 봇은 사람에게 말하고 **스스로 줄이지 않는다.**
+
+규칙 하나는 제목 한 줄과 내용 한두 줄로 적고, 머리에 셋을 단다 —
+**언제부터**(날짜) · **누가**(이름) · **무엇을 보고**(원본 경로나 대화 날짜).
+
+사람이 "앞으로 이렇게 해" 라고 말했을 때만 여기 들어온다. "이번에는" 은 들어오지 않는다.
+
+### 문체와 어휘
+(아직 없다)
+
+### 보고와 문서
+(아직 없다)
+
+### 하지 말 것
+(아직 없다)
+`;
+
+// 이미 있으면 덮지 않는다. 사람이 적어 둔 규칙과 사람이 늘린 gitignore 를 지우면 안 된다 —
+// setup 은 다시 돌릴 수 있어야 하고, 다시 돌려서 무엇이 사라지면 아무도 다시 안 돌린다.
+function 없으면쓴다(파일, 내용, note) {
+  if (fs.existsSync(파일)) { log(`있음  ${파일}`); return false; }
+  fs.writeFileSync(파일, 내용);
+  log(`만듦  ${파일}${note ? '  (' + note + ')' : ''}`);
+  return true;
+}
+
+function 과제폴더세우기(과제폴더) {
+  ensureDir(과제폴더, '과제 저장소');
+  for (const d of 과제폴더들) ensureDir(path.join(과제폴더, d));
+  없으면쓴다(path.join(과제폴더, 'house.md'), HOUSE, '규칙 — 훅이 여덟째로 싣는다 · 상한 50줄');
+  없으면쓴다(path.join(과제폴더, '.gitignore'), 'tmp/\n', '그림과 임시는 커밋하지 않는다');
+  ensureGit(과제폴더);
+}
+
+// ── 봇 설정 ───────────────────────────────────────────────
+
+// 틀의 {{…}} 를 이 기계의 값으로 바꾼다. 자리 둘을 가른다 (ADR-019).
+//   파일 뿌리(UPLOADS)      봇이 첨부할 수 있는 뿌리. 과제 저장소들의 부모다 (ARCHITECTURE 11절).
+//                           **여기를 deny 하면 안 된다** — 과제 폴더가 그 안에 있다.
+//   서버 업로드(SRV_UPLOADS) 서버가 받은 첨부를 쌓는 자리. 남의 원본이라 읽기만 한다.
+function 설정빚기({ 과제폴더, 봇폴더, 봇, DB, UPLOADS }) {
+  const SRV_UPLOADS = path.join(path.dirname(DB), 'uploads');
+  const tpl = fs.readFileSync(path.join(PRODEV, 'common', 'settings.template.json'), 'utf8');
+  const settings = JSON.parse(tpl
+    .replace(/\{\{PROJECT\}\}/g, pat(과제폴더))
+    .replace(/\{\{BOT\}\}/g, pat(봇폴더))
+    .replace(/\{\{PRODEV\}\}/g, pat(PRODEV))
+    .replace(/\{\{UPLOADS\}\}/g, pat(UPLOADS))
+    .replace(/\{\{HOOKS\}\}/g, esc(path.join(PRODEV, 'common', 'hooks')))
+    .replace(/\{\{PROJECT_DIR\}\}/g, esc(과제폴더))
+    .replace(/\{\{UPLOADS_DIR\}\}/g, esc(UPLOADS))
+    .replace(/\{\{PRODEV_DIR\}\}/g, esc(PRODEV))
+    .replace(/\{\{BOT_NAME\}\}/g, 봇)
+    .replace(/\{\{DB\}\}/g, esc(DB))
+    .replace(/\{\{GIT_BASH\}\}/g, esc(GIT_BASH))
+    // 훅이 방에 알릴 때 쓴다. 없으면 기본 3000 을 보고, 시험 서버가 딴 포트면 조용히 건너뛴다
+    // (T3.M 재생에서 훅 로그가 "서버나 알림 계정이 없다" 였다).
+    .replace(/\{\{URL\}\}/g, esc(URL_))
+    .replace(/\{\{STATUSLINE\}\}/g, esc(path.join(PRODEV, 'common', 'statusline.sh')))
+    .replace(/\{\{PATH\}\}/g, esc(BOT_PATH))
+    .replace('"{{AUTOCOMPACT}}"', String(AUTOCOMPACT)));
+
+  // 서버 업로드 폴더는 읽기만 한다 — 단, 그 폴더가 과제 폴더를 덮으면 넣지 않는다.
+  // 덮으면 봇이 헌장·카드·일지를 못 쓴다 (R1 재생에서 실제로 그랬다. ADR-019).
+  // 0층 불변은 이 목록이 아니라 intake-copy.js 의 0444 잠금과 git 이 지킨다.
+  if (!덮는다(SRV_UPLOADS, 과제폴더)) {
+    settings.permissions.deny.push(`Write(${pat(SRV_UPLOADS)}/**)`, `Edit(${pat(SRV_UPLOADS)}/**)`);
+  } else {
+    log(`!! 서버 업로드 폴더가 과제 폴더를 덮는다 (${SRV_UPLOADS}) — 읽기 전용 deny 를 넣지 않는다`);
+  }
+
+  // 어떤 deny 도 과제 폴더를 덮어서는 안 된다. 덮으면 봇이 아무것도 못 남긴다.
+  const 덮는것 = settings.permissions.deny.filter(d => {
+    const m = /^(?:Write|Edit)\((.*?)\/\*\*\)$/.exec(d);
+    return m && 덮는다(m[1].replace(/^\/\//, '/'), 과제폴더);
+  });
+  if (덮는것.length) throw new Error(`deny 가 과제 폴더를 덮는다: ${덮는것.join(' · ')}`);
+
+  return settings;
+}
+
 // ── minidiscord API ───────────────────────────────────────
 let cookie = '';
 async function api(method, p, body) {
@@ -187,21 +306,13 @@ async function install(opt) {
   const 봇 = 봇이름(과제);
   const 봇폴더 = path.join(PRODEV, 'bots', 봇);
   const DB = process.env.MINIDISCORD_DB || path.join(MINIDISCORD, 'server', 'data', 'minidiscord.db');
-  // 자리 둘을 가른다 (ADR-019). 한 변수로 묶었다가 과제 폴더가 쓰기 금지가 됐다.
-  //   파일 뿌리(UPLOADS)      봇이 첨부할 수 있는 뿌리. 과제 저장소들의 부모다 (ARCHITECTURE 11절).
-  //                           **여기를 deny 하면 안 된다** — 과제 폴더가 그 안에 있다.
-  //   서버 업로드(SRV_UPLOADS) 서버가 받은 첨부를 쌓는 자리. 남의 원본이라 읽기만 한다.
+  // 봇이 첨부할 수 있는 뿌리. 과제 저장소들의 부모다 (ADR-019 · ARCHITECTURE 11절).
   const UPLOADS = process.env.MINIDISCORD_BOT_FILES_DIR || path.join(MINIDISCORD, 'server', 'data', 'uploads');
-  const SRV_UPLOADS = path.join(path.dirname(DB), 'uploads');
 
   console.log(`저장소: ${PRODEV}\n과제:   ${과제} (${과제폴더})\n봇:     ${봇}\nminidiscord: ${MINIDISCORD} (${URL_})\n`);
 
   console.log('① 폴더');
-  ensureDir(과제폴더, '과제 저장소');
-  for (const d of ['cards', 'wiki', 'inbox', 'journal', 'threads', 'research', 'patent', 'paper', 'report', 'tmp']) {
-    ensureDir(path.join(과제폴더, d));
-  }
-  ensureGit(과제폴더);
+  과제폴더세우기(과제폴더);
   ensureDir(봇폴더, '토큰 · 설정 · 자기 상태');
   if (!fs.existsSync(CHANNEL)) log(`없음  ${CHANNEL}  ← minidiscord 에서 npm install && npm run build -w channel`);
 
@@ -236,41 +347,8 @@ async function install(opt) {
     }
   }
 
-  console.log('\n③ 설정 파일 (훅 셋 배선 · env 셋)');
-  const tpl = fs.readFileSync(path.join(PRODEV, 'common', 'settings.template.json'), 'utf8');
-  const settings = JSON.parse(tpl
-    .replace(/\{\{PROJECT\}\}/g, pat(과제폴더))
-    .replace(/\{\{BOT\}\}/g, pat(봇폴더))
-    .replace(/\{\{PRODEV\}\}/g, pat(PRODEV))
-    .replace(/\{\{UPLOADS\}\}/g, pat(UPLOADS))
-    .replace(/\{\{HOOKS\}\}/g, esc(path.join(PRODEV, 'common', 'hooks')))
-    .replace(/\{\{PROJECT_DIR\}\}/g, esc(과제폴더))
-    .replace(/\{\{UPLOADS_DIR\}\}/g, esc(UPLOADS))
-    .replace(/\{\{PRODEV_DIR\}\}/g, esc(PRODEV))
-    .replace(/\{\{BOT_NAME\}\}/g, 봇)
-    .replace(/\{\{DB\}\}/g, esc(DB))
-    // 훅이 방에 알릴 때 쓴다. 없으면 기본 3000 을 보고, 시험 서버가 딴 포트면 조용히 건너뛴다
-    // (T3.M 재생에서 훅 로그가 "서버나 알림 계정이 없다" 였다).
-    .replace(/\{\{URL\}\}/g, esc(URL_))
-    .replace(/\{\{STATUSLINE\}\}/g, esc(path.join(PRODEV, 'common', 'statusline.sh')))
-    .replace(/\{\{PATH\}\}/g, esc(BOT_PATH))
-    .replace('"{{AUTOCOMPACT}}"', String(AUTOCOMPACT)));
-
-  // 서버 업로드 폴더는 읽기만 한다 — 단, 그 폴더가 과제 폴더를 덮으면 넣지 않는다.
-  // 덮으면 봇이 헌장·카드·일지를 못 쓴다 (R1 재생에서 실제로 그랬다. ADR-019).
-  // 0층 불변은 이 목록이 아니라 intake-copy.js 의 0444 잠금과 git 이 지킨다.
-  if (!덮는다(SRV_UPLOADS, 과제폴더)) {
-    settings.permissions.deny.push(`Write(${pat(SRV_UPLOADS)}/**)`, `Edit(${pat(SRV_UPLOADS)}/**)`);
-  } else {
-    log(`!! 서버 업로드 폴더가 과제 폴더를 덮는다 (${SRV_UPLOADS}) — 읽기 전용 deny 를 넣지 않는다`);
-  }
-
-  // 어떤 deny 도 과제 폴더를 덮어서는 안 된다. 덮으면 봇이 아무것도 못 남긴다.
-  const 덮는것 = settings.permissions.deny.filter(d => {
-    const m = /^(?:Write|Edit)\((.*?)\/\*\*\)$/.exec(d);
-    return m && 덮는다(m[1].replace(/^\/\//, '/'), 과제폴더);
-  });
-  if (덮는것.length) throw new Error(`deny 가 과제 폴더를 덮는다: ${덮는것.join(' · ')}`);
+  console.log('\n③ 설정 파일 (훅 셋 배선 · env 넷)');
+  const settings = 설정빚기({ 과제폴더, 봇폴더, 봇, DB, UPLOADS });
 
   fs.mkdirSync(path.join(봇폴더, '.claude'), { recursive: true });
   fs.writeFileSync(path.join(봇폴더, '.claude', 'settings.json'), JSON.stringify(settings, null, 2) + '\n');
@@ -284,6 +362,7 @@ async function install(opt) {
   log(`씀  bots/${봇}/.claude/settings.json${token ? ' · .mcp.json' : '  (.mcp.json 은 토큰이 없어 건너뜀)'}`);
   log(`훅  ${Object.keys(settings.hooks).join(' · ')}`);
   log(`env  ${Object.keys(settings.env).filter(k => k.startsWith('PRODEV') || k === 'MINIDISCORD_DB').join(' · ')}`);
+  log(`Git Bash  ${settings.env.CLAUDE_CODE_GIT_BASH_PATH}${process.platform === 'win32' ? '' : '  (맥·리눅스에서는 안 쓰인다 — 윈도우로 옮길 때를 위해 박아 둔다)'}`);
   log(`허용 ${settings.permissions.allow.length}건 · 거부 ${settings.permissions.deny.length}건 · 바깥 폴더 ${settings.permissions.additionalDirectories.length}개`);
 
   console.log('\n④ 환경 점검 (봇 설정에 박은 PATH 로)');
@@ -400,4 +479,4 @@ if (require.main === module) {
   })();
 }
 
-module.exports = { install, rooms, cron, archive, 봇이름, 알림계정, 갈래 };
+module.exports = { install, rooms, cron, archive, 봇이름, 알림계정, 갈래, 과제폴더세우기, 설정빚기, 과제폴더들, GIT_BASH };
