@@ -1,7 +1,7 @@
 # 지금 코드가 어떻게 생겼나 (as-built)
 
 설계는 `design/v3/ARCHITECTURE.md` 다. **여기는 실제로 만들어진 것**을 적는다. 둘이 다르면 8절에 그 자리와 ADR 번호가 있다.
-단계가 끝날 때마다 갱신한다 (`design/v3/TASKS.md` 0절). 마지막 갱신 2026-09-11, 진화하는 비서 관문 A — 자리(ADR-031~033) PR 뒤.
+단계가 끝날 때마다 갱신한다 (`design/v3/TASKS.md` 0절). 마지막 갱신 2026-09-11, 진화하는 비서 관문 B — 길(ADR-034~037) PR 뒤.
 
 ---
 
@@ -17,8 +17,8 @@ prodev/
   common/hooks/ 훅 셋 + places.js
   common/       settings.template.json · statusline.sh
   .claude/agents/   서브에이전트 여섯
-  .claude/skills/   스킬 열셋 (열둘 + 오케스트레이터)
-  test/         단위 시험 열 파일 + fixtures/
+  .claude/skills/   스킬 열다섯 (도메인 열넷 + 오케스트레이터)
+  test/         단위 시험 열한 파일 + fixtures/
   test/server/  서버가 필요한 시험 둘 (npm test 에 안 섞인다)
   docs/         harness-input · skill-matrix · launch · as-built(이 파일) · log
   bots/<봇>/    setup.js 가 만든다. git 제외. **이 저장소의 어떤 시험도 여기를 만지지 않는다**
@@ -59,14 +59,15 @@ prodev/
 
 DB 를 못 열거나 방을 몰라도 표식이 있으면 막는다 (카드 공지 · 발송은 fail-closed). 표식이 없는 글은 통과한다 — 거기까지 막으면 봇이 한 마디도 못 한다.
 
-## 4. `.claude/` — 에이전트 여섯 · 스킬 열셋
+## 4. `.claude/` — 에이전트 여섯 · 스킬 열다섯
 
 에이전트 (전부 서브. 팀 모드 없음. `model: opus`. 돌려주는 것은 20줄 안, 전수는 파일에, 커밋 안 함):
 `data-reader` · `researcher` · `reviewer` · `patent-analyst` · `paper-writer` · `report-writer`
 
-스킬: `charter` · `intake` · `find` · `research` · `schedule` · `brief` · `journal` · `patent` · `paper` · `report` · `review` · `close`
-\+ `prodev-orchestrator` (봉투 → 스킬 분기표, 본문 20줄).
-스킬 본문이 설계와 맞는지는 `docs/skill-matrix.md` 가 칸칸이 대조한다 (72칸).
+스킬: `charter` · `intake` · `find` · `research` · **`analysis`** · `schedule` · `brief` · `journal` · **`retro`** · `patent` · `paper` · `report` · `review` · `close`
+\+ `prodev-orchestrator` (봉투 → 스킬 분기표 + 굳는 길 절).
+**`analysis` 와 `retro` 는 v3 에서 손으로 더한 둘이다** (ADR-034 · 036) — 하네스가 만든 것이 아니라 ADR 로 정해 제작 세션이 썼다.
+스킬 본문이 설계와 맞는지는 `docs/skill-matrix.md` 가 칸칸이 대조한다 (84칸). 글자 수준의 규격은 `test/skills.test.js` 가 기계로 본다.
 
 ## 5. `setup.js` 가 만드는 것
 
@@ -107,7 +108,7 @@ DB 를 못 열거나 방을 몰라도 표식이 있으면 막는다 (카드 공�
 
 ## 7. 시험 묶음
 
-`npm test` — 서버가 필요 없다. **111건 · 0 실패.**
+`npm test` — 서버가 필요 없다. **133건 · 0 실패.**
 
 | 파일 | 건수 | 무엇을 |
 |---|---|---|
@@ -120,6 +121,7 @@ DB 를 못 열거나 방을 몰라도 표식이 있으면 막는다 (카드 공�
 | `peek.test.js` | 5 | csv · xlsx · pdf · jpg · 모르는 형식 |
 | `plot.test.js` | 2 | 그림 하나 · 안 죽는다 |
 | `setup.test.js` | 10 | 과제 폴더의 자리 넷 · `.gitignore` 한 줄 · `house.md` 골격 · 다시 돌려도 안 덮음 · Git Bash 키 · 허용 목록 22건(뺀 스물하나 · 내장 셋 · 남긴 열) · deny (ADR-032 · 033) |
+| `skills.test.js` | 22 | 스킬 열다섯이 제자리 · 머리말 · 분기표 순서(굳는 길 · analysis>find · retro>brief) · 트리거가 안 겹치나 · analysis 여섯 칸과 카드 필수와 관문 하나 · retro 근거와 판별 넷과 제안 셋 · report 의 templates 순서 · journal 의 되풀이 절 · CLAUDE.md 굳는 길 한 줄과 40줄 (ADR-034~037) |
 | `smoke.test.js` | 2 | 부품·fixture 가 제자리 |
 
 `npm run test:server` — 진짜 minidiscord 를 임시로 띄운다. **25건 · 0 실패** (setup 17 · replay 8).
@@ -145,6 +147,12 @@ cd <임시>/사본 && MINIDISCORD_DIR=<실제 minidiscord> npm run test:server
 | 과제 폴더에 `house.md` · `analysis/` · `templates/` · `.gitignore`. 훅이 `house.md` 를 여덟째로 싣는다 (상한 50줄) | 봇이 만들어 낸 것과 사람이 가르친 규칙이 **살 자리가 없었다.** 훅이 싣던 일곱은 전부 과제의 사실이고 규칙 칸이 하나도 없었다 | ADR-032 |
 | `house.md` 가 잘리면 봇이 첫 답에 사람에게 말하고 스스로 줄이지 않는다 | 잘린 자리부터는 봇이 있는 줄도 모르는 규칙이다. 새 장치를 만들지 않고 훅이 이미 아는 잘림을 말만 시켰다 | ADR-032 |
 | 허용 목록 41건 → 22건. `Grep`·`Glob` 을 이름으로 열고 셸 도구 스물하나를 뺐다. `env` 에 `CLAUDE_CODE_GIT_BASH_PATH` | 스킬·에이전트 본문이 부르는 바깥 명령은 `node`·`python3`·`git` 뿐이라 **봇이 할 수 있는 일이 줄지 않는다.** 줄어든 것은 셸로 새어 나갈 자리다 | ADR-033 |
+| `analysis` 스킬과 `analysis/<날짜>-<slug>/`(`run.py` · 여섯 칸 `run.md`) + **카드 하나** | "이 자료로 t 검정 해 줘" 를 받을 자리가 스킬 열둘 어디에도 없었다. 카드가 없으면 `analysis/` 는 찾기 층에 없어 다음 주에 못 찾는다 | ADR-034 |
+| 분석의 관문은 **모형 고르기 한 자리**뿐. 코드 짜는 데는 관문이 없다 | 가르는 기준은 측정법이 아니라 "누가 답이 맞는지 확인하나" 다. 피팅·t 검정은 잔차와 χ² 가 출력 안에 있어 기계가 스스로 확인하고, 모형 고르기는 봇이 그럴싸하게 틀린다 | ADR-034 |
+| "앞으로" 라고 하면 굳힌다. 굳히기 전에 **범위를 한 줄 되묻고**, "이번에는" 은 굳히지 않는다 | 자리(ADR-032)만 있고 **무엇이 언제 거기 들어가는지**가 없었다. 지시형의 진짜 위험은 승인이 아니라 **범위**다 | ADR-035 |
+| 관찰형은 **세지 않는다.** 일지의 `## 되풀이된 말` 에 쌓고 `retro` 가 읽는다 | "세 번 받으면 제안한다" 는 규칙은 카운터를 부르고 카운터는 점수를, 점수는 등급을 부른다. 일지는 이미 매일 쓰이고 있었다 | ADR-035 · 036 |
+| `retro` 스킬. 보고 넷 · **항목마다 근거** · 스킬 제안에는 판별 넷이 관문 | 읽는 시점을 정하지 않으면 관찰형 입구가 닫힌 채로 있는다. 그리고 회고의 가장 큰 위험은 봇이 패턴을 지어내는 것이다 | ADR-036 · 037 |
+| `report` 가 `templates/` 를 읽고 **둘 이상이면 사람이 고른다** | 봇이 고르면 틀린 양식이 검증된 것처럼 보인다. 즉석 서식에는 붙는 경계심이 `templates/` 의 파일에는 안 붙는다 | ADR-035 |
 | `paper/sections/<절>.md` · `<산출물>.review.md` | 설계에 자리가 없던 둘. 통과 전 초안과 원고를 갈라야 했고, F8 이 판정 파일을 요구한다 | ADR-017 |
 | 알림이 Bearer+JSON 이 아니라 쿠키+multipart | 서버가 Bearer 를 안 읽고(401) 글 올리기는 multipart 만 받는다(406). `-F` 가 아니라 `--form-string` — `-F` 는 `@TO(` 를 파일 경로로 읽는다 | ADR-018 |
 | 파일 뿌리를 deny 하지 않는다 | 파일 뿌리가 과제 저장소들의 부모라, 막으면 봇이 헌장을 못 쓴다. 0층 불변은 0444 와 git 이 지킨다 | ADR-019 |
@@ -165,3 +173,6 @@ cd <임시>/사본 && MINIDISCORD_DIR=<실제 minidiscord> npm run test:server
 - `setup.js` 의 갈래 이름은 `common/hooks/places.js` 의 `갈래들` 한 자리에서 온다 (ADR-022). 훅의 확정 조건 ② 와 같은 값이어야 하기 때문이다.
 - `git init` 이 실패해도 설치는 이어 간다 (ADR-023). 못 했다는 한 줄만 남긴다 — 커밋은 나중 일이고, 여기서 멈추면 봇을 못 띄운다.
 - 알림 토큰도 못 받으면 설치는 이어 간다 (ADR-024). 못 받았다는 한 줄만 남기고, 사람이 손으로 `.env` 에 넣을 수 있다.
+- `analysis/methods/` 는 `setup.js` 가 만들지 않는다. **굳는 길을 타는 봇이 처음 굳힐 때 만든다** (ADR-034 · 035). `analysis/` 는 있다.
+- `test/skills.test.js` 가 재는 것은 **스킬 본문의 글자**다. 봇이 실제로 그렇게 행동하는지는 대본(C 층)이 잰다. 그래도 값을 하는 까닭은 스킬 본문이 PR 이라야 고쳐지기 때문이다 — 규격이 본문에서 빠지면 그 뒤로는 아무도 그것을 요구하지 않게 된다.
+- `retro` 제안의 **채택률**은 이 맥에서 못 잰다. 쌓인 일지가 없다 (T4 의 것이다).
