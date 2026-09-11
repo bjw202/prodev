@@ -182,7 +182,7 @@ supersedes: none
 1 index.json 의 title · aliases · tags     → 카드 경로
 2 cards/*.md 본문                          → 카드 경로 + 행
 3 wiki/*.md                                → 페이지 + 행
-4 charter.md 절 · schedule.md 표 행         → charter.md#<절 이름> 또는 schedule.md + 행
+4 charter.md 절 · schedule.md 표 행         → charter.md#<절 이름> · schedule.md#<첫 칸>
 5 inbox/*/files.md                         → 사이드카 경로 + 행
 6 chat.js search (AND)                     → #message_id (최근 10건을 골라 오래된 순으로)
 ```
@@ -191,6 +191,7 @@ NFC 정규화 · 조사 떼기(을/를/이/가/은/는/의/에/에서/로/으로
 **4층 과제 문서 (ADR-026 · ADR-027)** 4.2 의 `charter.md` · `schedule.md` 를 본다. 예산 · 중간 점검 · 판정 기준처럼 헌장과 일정에 또박또박 적혀 있는 것이 검색 층에 아예 없어서 답하지 못하던 자리다.
 - 자리는 **위키 뒤 · inbox 앞**이다. 위키 뒤면 1~3층(카드·위키)을 구조적으로 가로챌 수 없다.
 - 맞대는 알갱이는 **파일이 아니라 절·행**이다. `charter.md` 는 머리말(첫 `---` 블록) 한 덩이 + `## ` 절마다, `schedule.md` 는 표 행마다. 파일을 통째로 맞대면 서로 다른 절의 낱말이 함께 걸려 거짓 양성이 난다.
+- **잘린 덩이마다 경로가 다르다** — `charter.md#<절 이름>` · `schedule.md#<첫 칸>`. 결과는 경로로 묶이므로, 덩이 여럿이 같은 경로를 쓰면 걸린 것이 첫 하나만 남고 조용히 버려진다 (ADR-027).
 - 일지(`journal/`)는 이 층에 **넣지 않는다.** 까닭은 ADR-026.
 - 파일이 없으면 조용히 건너뛴다 (과제 초기에는 둘 다 없다).
 

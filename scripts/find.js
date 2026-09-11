@@ -7,7 +7,7 @@
 //   1 index.json 의 title · aliases · tags   → 카드 경로
 //   2 cards/*.md 본문                         → 카드 경로 + 행
 //   3 wiki/*.md                               → 페이지 + 행
-//   4 charter.md 절 · schedule.md 표 행        → 절 이름 또는 파일 + 행
+//   4 charter.md 절 · schedule.md 표 행        → charter.md#<절 이름> · schedule.md#<첫 칸>
 //   5 inbox/*/files.md                        → 사이드카 경로 + 행
 //   6 chat.js search (AND)                    → #message_id (여러 건, 최근 것부터, ≤10)
 //
@@ -205,7 +205,10 @@ function layerDocs(root, ts) {
     }
   }
 
-  // schedule.md — `|` 로 시작하는 표 행마다. 구분선과 그 바로 앞 머리 행은 건너뛴다
+  // schedule.md — `|` 로 시작하는 표 행마다. 구분선과 그 바로 앞 머리 행은 건너뛴다.
+  // 경로는 `schedule.md#<첫 칸>` 이다. 행마다 달라야 한다 — 아래 dedupe 가 경로로 묶으므로
+  // 모든 행이 `schedule.md` 로 같으면 걸린 행 여럿이 첫 하나만 남고 **조용히** 버려진다.
+  // 이름이 같은 두 행은 그때 묶이는 것이 맞다 (진짜 중복이다).
   const sp = path.join(root, 'schedule.md');
   if (fs.existsSync(sp)) {
     const lines = fs.readFileSync(sp, 'utf8').split('\n');
@@ -214,7 +217,9 @@ function layerDocs(root, ts) {
       if (!line.startsWith('|')) continue;
       if (isDivider(line)) continue;
       if (lines[i + 1] !== undefined && isDivider(lines[i + 1])) continue;   // 머리 행
-      if (hasAll(line, ts)) hits.push({ path: 'schedule.md', line: i + 1, text: line.trim() });
+      if (!hasAll(line, ts)) continue;
+      const 첫칸 = (line.split('|')[1] || '').trim();            // 항목 이름. 그 행이 무엇인지다
+      hits.push({ path: `schedule.md#${첫칸 || `${i + 1}행`}`, line: i + 1, text: line.trim() });
     }
   }
 
