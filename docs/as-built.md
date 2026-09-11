@@ -1,7 +1,7 @@
 # 지금 코드가 어떻게 생겼나 (as-built)
 
-설계는 `ARCHITECTURE.md` 다. **여기는 실제로 만들어진 것**을 적는다. 둘이 다르면 8절에 그 자리와 ADR 번호가 있다.
-단계가 끝날 때마다 갱신한다 (`TASKS.md` 0절). 마지막 갱신 2026-09-10, ADR-022(방 둘) 코드 PR 뒤.
+설계는 `design/v1/ARCHITECTURE.md` 다. **여기는 실제로 만들어진 것**을 적는다. 둘이 다르면 8절에 그 자리와 ADR 번호가 있다.
+단계가 끝날 때마다 갱신한다 (`design/v1/TASKS.md` 0절). 마지막 갱신 2026-09-10, ADR-022(방 둘) 코드 PR 뒤.
 
 ---
 
@@ -9,7 +9,8 @@
 
 ```
 prodev/
-  PRD.md ARCHITECTURE.md ADR.md TASKS.md VERIFICATION.md README.md CLAUDE.md
+  README.md CLAUDE.md
+  design/v1/    이 판의 설계 문서 다섯 (PRD · ARCHITECTURE · ADR · TASKS · VERIFICATION)
   scripts/      부품 열 (아래 2절)
   common/hooks/ 훅 셋 + places.js
   common/       settings.template.json · statusline.sh
@@ -40,7 +41,7 @@ prodev/
 
 | 파일 | 사건 | 하는 것 | 실패했을 때 |
 |---|---|---|---|
-| `session-start.js` | SessionStart (startup·resume·clear·compact) | `ARCHITECTURE.md` 6.4 의 파일들을 그 순서대로 `additionalContext` 로. **없음·못 읽음·잘림을 말로 가른다**. `compact` 일 때만 방에 "정리가 끝났습니다" 한 줄 | fail-open (exit 0) |
+| `session-start.js` | SessionStart (startup·resume·clear·compact) | `design/v1/ARCHITECTURE.md` 6.4 의 파일들을 그 순서대로 `additionalContext` 로. **없음·못 읽음·잘림을 말로 가른다**. `compact` 일 때만 방에 "정리가 끝났습니다" 한 줄 | fail-open (exit 0) |
 | `pre-compact.js` | PreCompact | 기록 꼬리 → `claude -p` 요약 → `handoff-compact.md`, **본방**에 "정리 중" (알림 계정. 방은 `chat_id` → env → `rooms.json` 의 본방) | fail-open. 못 썼으면 "못 썼다"를 파일에 적는다 |
 | `pre-reply.js` | PreToolUse `mcp__minidiscord-channel__reply` | 다섯을 차례로 본다 (아래) | 막을 때 **exit 2 + stderr 한 줄**. 통과는 exit 0 무언 |
 | `places.js` | (모듈) | 봇 폴더 · 과제 폴더 · DB · 방 이름을 env 로 찾는다. **알림 한 자리**(`알릴방` · `알림토큰` · `알린다`) — 훅 둘이 같이 쓴다 | 모르면 `null` — 부르는 쪽이 정한다 |

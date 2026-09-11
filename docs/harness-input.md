@@ -17,14 +17,14 @@ minidiscord 채팅방에서 PL 과 과제원의 공정개발 과제를 비서 �
 
 | 문서 | 어디를 | 무엇이 거기 있나 |
 |---|---|---|
-| `PRD.md` | 전체 | 무엇을 왜 만드나. 시나리오 S0~S7 · 요구 F1~F13 · N1~N7 · 범위 밖 |
-| `ARCHITECTURE.md` | **6절 · 9절 · 10절** | 6절 흐름 넷(들이기 · 물음 · 리서치 · 켜기/압축) · 9절 에이전트 여섯 표 · 10절 스킬 열둘 이름 |
+| `design/v1/PRD.md` | 전체 | 무엇을 왜 만드나. 시나리오 S0~S7 · 요구 F1~F13 · N1~N7 · 범위 밖 |
+| `design/v1/ARCHITECTURE.md` | **6절 · 9절 · 10절** | 6절 흐름 넷(들이기 · 물음 · 리서치 · 켜기/압축) · 9절 에이전트 여섯 표 · 10절 스킬 열둘 이름 |
 | `../meta/prodev-review/plans/2026-09-10-prodev-design.md` | **B 표 · C 표** | B(150~166행) 스킬 열둘의 트리거 말 · 입력 · 하는 일 · 남기는 것 · 사람 관문 · 부르는 것 / C(169~187행) 에이전트 여섯과 공통 규칙 셋 |
 
 ### 사람이 세션에 붙여넣을 한 줄
 
 ```
-/harness:harness minidiscord 채팅방에서 PL 과 과제원의 공정개발 과제를 비서 하나가 잇는다. 스킬 열둘(charter·intake·find·research·schedule·brief·journal·patent·paper·report·review·close)과 서브에이전트 여섯(data-reader·researcher·reviewer·patent-analyst·paper-writer·report-writer). 팀 모드 없음. 훅·settings 는 만들지 않는다. 읽을 것: PRD.md · ARCHITECTURE.md (6절 흐름 · 9절 에이전트 · 10절 스킬) · ../meta/prodev-review/plans/2026-09-10-prodev-design.md 의 B 표(스킬 열둘: 트리거 말·입력·산출·관문·부르는 것)와 C 표(에이전트 여섯).
+/harness:harness minidiscord 채팅방에서 PL 과 과제원의 공정개발 과제를 비서 하나가 잇는다. 스킬 열둘(charter·intake·find·research·schedule·brief·journal·patent·paper·report·review·close)과 서브에이전트 여섯(data-reader·researcher·reviewer·patent-analyst·paper-writer·report-writer). 팀 모드 없음. 훅·settings 는 만들지 않는다. 읽을 것: design/v1/PRD.md · design/v1/ARCHITECTURE.md (6절 흐름 · 9절 에이전트 · 10절 스킬) · ../meta/prodev-review/plans/2026-09-10-prodev-design.md 의 B 표(스킬 열둘: 트리거 말·입력·산출·관문·부르는 것)와 C 표(에이전트 여섯).
 ```
 
 ## 3. 이름 하나를 못 박는다 — 오케스트레이터 스킬
@@ -33,8 +33,8 @@ minidiscord 채팅방에서 PL 과 과제원의 공정개발 과제를 비서 �
 
 | 어디 | 뭐라고 적혀 있나 |
 |---|---|
-| `ARCHITECTURE.md` 10절 | `prodev-orchestrator` ← **이것을 쓴다** |
-| `TASKS.md` T2.2 · meta 의 T2.1 지시 | `prodev-orchestrator` |
+| `design/v1/ARCHITECTURE.md` 10절 | `prodev-orchestrator` ← **이것을 쓴다** |
+| `design/v1/TASKS.md` T2.2 · meta 의 T2.1 지시 | `prodev-orchestrator` |
 | `prodev-design.md` B 표 끝줄 | `secretary-orchestrator` (옛 이름. 따르지 않는다) |
 
 하네스가 `secretary-orchestrator` 를 만들었으면 이름을 고친다. 스킬은 열둘 + 이것 하나 = **열셋**이다.
