@@ -21,6 +21,7 @@ prodev/
   test/         단위 시험 열한 파일 + fixtures/
   test/server/  서버가 필요한 시험 둘 (npm test 에 안 섞인다)
   docs/         harness-input · skill-matrix · launch · as-built(이 파일) · log
+  docs/evidence/  meta 의 판정 기록 사본 여덟 (내용 그대로. 고치지 않는다)
   bots/<봇>/    setup.js 가 만든다. git 제외. **이 저장소의 어떤 시험도 여기를 만지지 않는다**
 ```
 

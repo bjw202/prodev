@@ -426,6 +426,37 @@ claude --setting-sources project,local
 
 cwd 와 `--setting-sources` 는 그대로여야 한다. 훅 · 허용 목록 · `env` 셋이 전부 봇 폴더의 설정에서 오기 때문이다.
 
+### 11.1.1 재는 판은 **저장소 사본**에서 돌린다
+
+```bash
+git archive HEAD | (mkdir -p <임시>/사본 && tar -x -C <임시>/사본)
+cd <임시>/사본 && npm install
+```
+
+제작 저장소에서 그냥 돌리면 `bots/` 에 **형제 봇 폴더들**이 남아 있다. 봇은 자기 폴더만 보는 것이 아니라
+`places.js` 로 자리를 찾으므로, 앞 판의 봇 폴더가 보이면 그 실(threads)과 `find.log` 가 섞여 들어와
+**재는 값이 오염된다.** `git archive` 사본은 `bots/` 가 gitignore 라 **비어 있다.**
+
+검색 2차 관문에서 실제로 이 자리를 밟았고, 그 뒤로 모든 관문을 사본에서 돌렸다
+(`docs/evidence/2026-09-11-search-2.md` 5.1 · `docs/evidence/2026-09-11-evo-path.md` 머리말).
+
+### 11.1.2 봇 세션과 검수 세션의 **권한 등급을 맞춘다**
+
+```bash
+cd bots/prodev-<과제>-bot
+claude --setting-sources project,local --permission-mode bypassPermissions
+```
+
+안 맞추면 **걸음마다 승인 창이 뜬다.** 검수 세션은 사람이 붙어 있지만 봇 세션은 그렇지 않아서,
+승인을 기다리며 멈춰 있는 것이 밖에서는 "생각하는 중" 과 구분되지 않는다.
+
+관문 B 에서 1~4부 봇 세션이 걸음마다 승인을 받아야 했고, 5부 전에 같은 폴더에서
+`--permission-mode bypassPermissions` 로 다시 켜자 승인 없이 들어갔다
+(`docs/evidence/2026-09-11-evo-path.md` 3.5). **대본을 돌리기 전에 맞춰 둔다.**
+
+이것은 **재는 판의 이야기**다. 실전에서 봇을 어떤 등급으로 띄울지는 4절이 정한다 —
+허용 목록(22건)이 일상 걸음을 덮으므로 실전에서는 이 옵션이 필요 없다.
+
 ### 11.2 대화 층은 붙여야 산다
 
 `MINIDISCORD_DB` 를 안 붙이면 `find.js` 의 **6층(대화)이 빈 층이 된다.** 조용히 비는 것이라(fail-open)
