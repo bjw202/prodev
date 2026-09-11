@@ -62,7 +62,8 @@
 ### 4.1 prodev 저장소 (이 저장소)
 ```
 prodev/
-  PRD.md ARCHITECTURE.md ADR.md TASKS.md VERIFICATION.md
+  README.md                        들머리 (하네스가 무엇이고 어떻게 도나)
+  design/v1/                       이 판의 설계 문서 다섯 (PRD · ARCHITECTURE · ADR · TASKS · VERIFICATION)
   CLAUDE.md                        하네스 포인터(스킬이 쓴다) + 비서 지침 열 줄 (7절)
   .claude/agents/*.md              하네스 산출 (6)
   .claude/skills/*/SKILL.md        하네스 산출 (12 + 오케스트레이터 1)

@@ -83,7 +83,7 @@ node scripts/peek.js <파일>          행 수 · 열 이름 · 앞 5행 · 형�
 ## 카드
 
 번호는 `node scripts/index.js next E` 가 준다. 스스로 매기지 않는다 (한 턴에 둘이 같은 번호를 받는다).
-머리말과 절 구성은 `ARCHITECTURE.md` 5.1 그대로. 특히:
+머리말과 절 구성은 `design/v1/ARCHITECTURE.md` 5.1 그대로. 특히:
 
 - `date` 는 **측정일**이다. 올린 날이 아니다.
 - `source_msgs` 는 첨부가 올라온 글 번호 **전부**.
