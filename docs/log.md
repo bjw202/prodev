@@ -473,3 +473,31 @@
 | 커밋 | 무엇 |
 |---|---|
 | `docs/evo-readme-2` 가지 | `README.md`(그림 둘 · 출처 표 · 근거 아홉 · 등장인물) · `docs/log.md` |
+
+## fixture DB 의 토큰을 지운다 (2026-09-11)
+
+**한 일**: 저장소가 public 이 되어 사람이 보안 점검을 시켰고, **`test/fixtures/chat/minidiscord.db` 에 살아 있는 토큰이 들어 있었다.** meta 가 지운 사본으로 교체했다. 코드도 시험도 안 바꿨다.
+
+**무엇이 있었나**: 옛 crew 봇의 **봇 토큰 다섯(64자)** 과 **로그인 세션 서른 행**이다. 로컬 서버 DB 와 같은 값이었다 (meta 가 대조). 서버가 127.0.0.1 에만 열려 있어 실해는 없지만 **공개 저장소에 둘 값이 아니다.** 로컬 서버 쪽 토큰은 meta 가 API 로 죽였다.
+
+**어쩌다 들어갔나**: 이 fixture 는 2026-09-08~09 crew 방의 실제 대화 377건을 **서버 DB 에서 파일 하나로 합친 사본**이다 (`test/fixtures/README.md` chat 절). 만들 때 `messages` 를 가져오려고 DB 를 통째로 복사했고, **같은 파일에 있던 `bots` 와 `sessions` 가 따라왔다.** 시험은 대화만 읽으므로 그 두 표가 있다는 것이 한 번도 드러나지 않았다.
+
+**고친 것**: `../meta/prodev-review/fixtures/chat/minidiscord.db` 를 그대로 복사했다 (fixture 는 meta → prodev 로 오는 것이 관례다). 바꾸기 전후를 직접 열어 맞대 보았다.
+
+| | 전 | 후 |
+|---|---|---|
+| `bots.token` | **64자 진짜 꼴 다섯** | `fixture-token-<id>` 다섯 |
+| `sessions` | **30행** | **0행** |
+| `messages` · `message_targets` · `attachments` · `users` · `rooms` · `room_bots` | 377 · 136 · 18 · 3 · 1 · 5 | **그대로** |
+
+**`test/fixtures/hooks/fixture.db` 는 그대로 두었다.** meta 가 괜찮다고 했지만 믿지 않고 직접 열어 보았다 — 봇 하나의 토큰이 `fixture-token` 이고 `sessions` 가 0행이라 지울 것이 없다.
+
+**그 김에 저장소 전체를 훑었다.** 추적되는 파일에서 64자 16진수 꼴이 나오는 자리는 `test/hooks.test.js` 한 곳인데, `a1b2c3…` 과 `ff00ee11…` 로 **32자를 두 번 반복한 지어낸 값**이라 둘 다 그대로 둔다. `.env` · `.pem` · 키 파일은 추적되는 것이 없고, `TOKEN=` · `SECRET=` 꼴의 실제 값도 없다.
+
+**이력은 다시 쓰지 않는다.** 옛 커밋에는 옛 값이 남지만 **서버에서 죽이면 죽은 값**이다. 이력 재작성은 이미 clone 한 사람에게 아무 효과가 없으면서 `docs/evidence/` 의 sha256 대조와 관문 기록의 커밋 번호를 전부 깨뜨린다.
+
+**잰 것**: `npm test` **133건 · 0 실패** · `npm run test:server` **25건 · 0 실패** (토큰 값을 읽는 시험이 없다는 것을 교체 뒤에 직접 확인했다).
+
+| 커밋 | 무엇 |
+|---|---|
+| `test/fixture-scrub` 가지 | `test/fixtures/chat/minidiscord.db` · `test/fixtures/README.md` · `docs/log.md` |
