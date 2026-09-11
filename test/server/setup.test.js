@@ -235,10 +235,18 @@ test('setup — bots/<이름>/.claude/settings.json 에 훅 셋과 env 셋이 �
   assert.ok(!('PRODEV_HOOK' in s.env), 'PRODEV_HOOK 이 봇 env 에 들어갔다');
   assert.ok(!s.env.PATH.includes('$') && !s.env.PATH.includes('%'), 'PATH 에 안 펼쳐진 변수 참조가 있다');
 
-  // 허용 목록 — crew 33건 + 회차 5 원인 넷을 덮는 것
-  assert.ok(s.permissions.allow.length >= 38, `허용이 ${s.permissions.allow.length}건이다`);
-  for (const 항목 of ['Bash(python3:*)', 'Bash(chmod:*)', 'Bash(shasum:*)', 'Bash(cd:*)', 'Bash(gh:*)', 'Bash(grep:*)']) {
+  // 윈도우로 옮길 때의 보험 — 봇은 user 범위 설정을 못 읽는다 (ADR-033)
+  assert.ok(s.env.CLAUDE_CODE_GIT_BASH_PATH && s.env.CLAUDE_CODE_GIT_BASH_PATH.length > 0,
+    'env 에 CLAUDE_CODE_GIT_BASH_PATH 가 없거나 비었다');
+
+  // 허용 목록 — 22건. 셸 도구 스물하나를 뺐고 내장 도구가 대신한다 (ADR-033).
+  // 자세한 것은 test/setup.test.js 가 본다. 여기서는 **실제로 쓰인 설정 파일**에서 확인한다.
+  assert.strictEqual(s.permissions.allow.length, 22, `허용이 ${s.permissions.allow.length}건이다`);
+  for (const 항목 of ['Bash(python3:*)', 'Bash(node:*)', 'Bash(git:*)', 'Bash(cd:*)', 'Bash(gh:*)', 'Read', 'Grep', 'Glob']) {
     assert.ok(s.permissions.allow.includes(항목), `허용에 ${항목} 이 없다`);
+  }
+  for (const 항목 of ['Bash(grep:*)', 'Bash(chmod:*)', 'Bash(shasum:*)', 'Bash(sed:*)', 'Bash(cat:*)']) {
+    assert.ok(!s.permissions.allow.includes(항목), `뺀 것이 되살아났다: ${항목}`);
   }
   // 파일 뿌리는 읽게 열어 둔다 (첨부가 거기 있다)
   assert.ok(s.permissions.additionalDirectories.length >= 2);

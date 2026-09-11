@@ -51,13 +51,15 @@ test('session-start — 없음: 파일이 하나도 없으면 칸마다 "없음"
   const c = 문맥({ PRODEV_BOT: '시험비서', PRODEV_PROJECT: proj, PRODEV_HANDOFF: path.join(proj, '없다.md') });
 
   assert.match(c, /^\[깨어남: startup\] 나는 시험비서다\./);
-  for (const 칸 of ['인수인계서', '헌장 (charter.md)', '일정 (schedule.md)', '열린 실', '어제 일지', '색인 머리', '마지막 일지']) {
+  for (const 칸 of ['인수인계서', '헌장 (charter.md)', '일정 (schedule.md)', '열린 실', '어제 일지', '색인 머리', '마지막 일지',
+    '이 과제의 규칙 (house.md)']) {
     assert.ok(c.includes(칸), `칸이 빠졌다: ${칸}`);
   }
   // 없는 것은 "없음" 이라고 말하고 왜 없는지도 말한다
   assert.match(c, /\(없음 — 아직 발의하지 않았다\. charter 스킬부터\)/);
   assert.match(c, /\(없음 — 지금 붙들고 있는 실이 없다\)/);
   assert.match(c, /\(없음 — 일지를 한 번도 안 썼다\)/);
+  assert.match(c, /\(없음 — 아직 굳은 규칙이 없다\./);
   assert.ok(!c.includes('잘림'));
 });
 
@@ -121,9 +123,53 @@ test('session-start — handoff-compact 만 있음: 인수인계서가 먼저 �
 
   // 절 순서가 6.4 대로다: 인수인계서 → 헌장 → 일정 → 열린 실 → 어제 일지 → 색인 → 마지막 일지
   const 자리 = ['인수인계서 (handoff-compact.md)', '헌장 (charter.md)', '일정 (schedule.md)',
-    '열린 실 (threads/)', '어제 일지', '색인 머리 (index.md)', '마지막 일지'].map(k => c.indexOf(`## ${k}`));
+    '열린 실 (threads/)', '어제 일지', '색인 머리 (index.md)', '마지막 일지',
+    '이 과제의 규칙 (house.md)'].map(k => c.indexOf(`## ${k}`));
   for (const i of 자리) assert.ok(i >= 0, `절이 빠졌다: ${자리.indexOf(i)}`);
   assert.deepStrictEqual(자리, [...자리].sort((a, b) => a - b), '절 순서가 6.4 와 다르다');
+});
+
+// ── house.md — 여덟째 절 (ADR-032) ────────────────────────
+// 앞 일곱과 다른 점 둘을 본다: 순서가 맨 끝이라는 것과, 잘렸을 때 **봇에게 말을 시킨다**는 것.
+
+test('session-start — house.md 를 여덟째(마지막)로 싣는다', () => {
+  const proj = tmp('ss-house');
+  fs.writeFileSync(path.join(proj, 'house.md'), '# 이 과제에서 일하는 방식\n\n## 문체\n- 보고는 표로 시작한다 (2026-09-11 · 김피엘)\n');
+  fs.writeFileSync(path.join(proj, 'charter.md'), '# 헌장\nPL: 김피엘\n');
+
+  const c = 문맥({ PRODEV_BOT: '시험비서', PRODEV_PROJECT: proj, PRODEV_HANDOFF: path.join(proj, '없다.md') });
+
+  assert.ok(c.includes('- 보고는 표로 시작한다 (2026-09-11 · 김피엘)'), '규칙 알맹이가 안 실렸다');
+  assert.ok(c.indexOf('## 이 과제의 규칙 (house.md)') > c.indexOf('## 마지막 일지'), '여덟째가 아니다');
+  assert.ok(!c.includes('잘림'), '50줄 이내인데 잘렸다고 했다');
+  assert.ok(!c.includes('스스로 줄이지 마라'), '잘리지도 않았는데 줄이라는 말을 꺼냈다');
+});
+
+test('session-start — house.md 가 50줄을 넘으면 자르고, 봇에게 사람에게 말하라고 시킨다 (스스로 줄이지 않는다)', () => {
+  const proj = tmp('ss-house-cut');
+  fs.writeFileSync(path.join(proj, 'house.md'), Array.from({ length: 63 }, (_, i) => `- 규칙 ${i + 1}`).join('\n'));
+
+  const c = 문맥({ PRODEV_BOT: '시험비서', PRODEV_PROJECT: proj, PRODEV_HANDOFF: path.join(proj, '없다.md') });
+
+  assert.match(c, /## 이 과제의 규칙 \(house\.md\) \(앞부분만 · 잘림\)/);
+  assert.match(c, /… \(13줄 더 있음 — 파일을 직접 읽어라\)/);
+  assert.ok(c.includes('- 규칙 50'), '앞 50줄이 안 실렸다');
+  assert.ok(!c.includes('- 규칙 51'), '상한을 넘겨 실었다');
+  // 조용히 죽지 않는다 — 봇이 첫 답에 말한다. 그리고 줄이는 것은 사람이다
+  assert.ok(c.includes('첫 답에 이것부터 사람에게 말하라'), '잘림을 사람에게 알리라는 지시가 없다');
+  assert.ok(c.includes('50줄을 넘어'), '상한 값을 말하지 않는다');
+  assert.ok(c.includes('스스로 줄이지 마라'), '봇이 스스로 줄여도 되는 것처럼 읽힌다');
+});
+
+test('session-start — house.md 가 딱 50줄이면 자르지 않는다 (경계)', () => {
+  const proj = tmp('ss-house-50');
+  fs.writeFileSync(path.join(proj, 'house.md'), Array.from({ length: 50 }, (_, i) => `- 규칙 ${i + 1}`).join('\n'));
+
+  const c = 문맥({ PRODEV_BOT: '시험비서', PRODEV_PROJECT: proj, PRODEV_HANDOFF: path.join(proj, '없다.md') });
+
+  assert.ok(c.includes('- 규칙 50'));
+  assert.ok(!c.includes('앞부분만 · 잘림'));
+  assert.ok(!c.includes('첫 답에 이것부터 사람에게 말하라'));
 });
 
 test('session-start — 60줄 넘는 일지는 앞부분만 싣고 잘렸다고 말한다', () => {

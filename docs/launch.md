@@ -279,8 +279,20 @@ sqlite3 <DATA_DIR>/minidiscord.db "SELECT name, token FROM bots;"
 | python: `matplotlib` | `python3 -c "import matplotlib"` | 그림을 못 그린다. **죽지는 않는다** — "못 그렸다" 한 줄을 내고 넘어간다 |
 | python: `pdfplumber` (선택) | `python3 -c "import pdfplumber"` | pdf 글을 못 읽는다. `pdftotext` 가 있으면 그것을 쓰고, 둘 다 없으면 쪽 수만 |
 | `pdftotext` (선택) | `which pdftotext` | 위와 같다 |
+| python: `pandas` (분석) | `python3 -c "import pandas"` | 표를 다루는 분석이 안 된다. 들이기·그림은 그대로 돈다 |
+| python: `scipy` (분석) | `python3 -c "import scipy"` | t 검정 · 분포 같은 계산이 안 된다 |
+| python: `statsmodels` (분석) | `python3 -c "import statsmodels"` | 회귀 · 분산분석 · DOE 배치가 안 된다 |
 | **Claude Code** | `claude --version` | 봇을 못 띄운다 |
 | minidiscord 채널 플러그인 빌드 | `ls minidiscord/channel/dist/index.js` | `cd minidiscord && npm install && npm run build -w channel` |
+
+**꾸러미는 사람이 미리 깐다. 봇에게 시키지 않는다.** 봇 허용 목록에 `pip` 가 없고(ADR-033), 윈도우는 `pip` 가 아니라 `py -m pip` 라 한 줄을 열어 줘도 안 맞을 수 있다. 그리고 무엇이 깔리는지는 사내 기계에서 사람이 알고 있어야 하는 일이다.
+
+```bash
+python3 -m pip install pandas scipy statsmodels      # 맥·리눅스
+py -m pip install pandas scipy statsmodels           # 윈도우
+```
+
+위 여섯 가운데 `openpyxl` · `matplotlib` 은 **봇이 쓰는 것**(들이기의 xlsx 와 그림)이고, `pandas` · `scipy` · `statsmodels` 은 **분석에 쓰는 것**이다. 뒤 셋이 없어도 봇은 그대로 돈다 — 분석만 못 한다.
 
 **하네스 플러그인은 필요 없다.** 스킬 열셋과 에이전트 여섯은 이미 `prodev/.claude/` 안에 파일로 있다.
 `/harness:harness` 는 그것을 **만들 때** 쓴 도구이고, 돌리는 데는 쓰지 않는다.
@@ -437,4 +449,4 @@ export MINIDISCORD_DB=<DB 사본 경로>
 셋 다 훅 단위 시험이 이미 잡고 있다 (`pre-reply-cases.json` 17건). 세션 판이 못 보는 것은
 "실제 대화 흐름에서 봇이 그 관문에 걸리는가" 뿐이다. 그것은 실전 이전(T4)에 서버 판으로 한 번 잰다.
 
-검수표에는 **"못 잼"** 으로 적는다. 통과로도 불통과로도 세지 않는다 (`design/v2/VERIFICATION.md` 4.3).
+검수표에는 **"못 잼"** 으로 적는다. 통과로도 불통과로도 세지 않는다 (`design/v3/VERIFICATION.md` 4.3).

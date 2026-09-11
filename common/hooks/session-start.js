@@ -10,6 +10,12 @@
 //   5 어제 일지
 //   6 index.md 머리 30줄  무엇이 쌓여 있나
 //   7 마지막 일지 날짜    며칠 비었나
+//   8 house.md            이 과제에서 이 사람과 일하는 방식 (ADR-032)
+//
+// 여덟째만 성격이 다르다. 앞 일곱은 전부 **이 과제의 사실**이고 house.md 는 **규칙**이다.
+// 사실은 자동으로 늘어도 되지만(틀리면 다음 것이 덮는다) 규칙은 한 번 들어가면 그 뒤 모든 판에
+// 작용하므로 사람이 세운다. 그래서 상한이 50줄이다 — 새 규칙을 넣으려면 낡은 규칙을 빼야 한다.
+// 장치를 더 만들지 않고 **숫자 하나로** 규칙의 폭주를 막는 자리다.
 //
 // crew 의 훅은 cwd 가 봇 폴더라는 것을 전제했다. 여기서는 뺐다 — 자리는 places.js 가 env 로 찾는다.
 // 압축 직후(source: compact)에는 방에 "정리가 끝났습니다" 한 줄을 올린다 (ADR-018 보충).
@@ -20,7 +26,7 @@ const fs = require('fs');
 const path = require('path');
 const P = require('./places.js');
 
-const 상한 = { handoff: 60, charter: 40, schedule: 40, thread: 25, journal: 60, index: 30 };
+const 상한 = { handoff: 60, charter: 40, schedule: 40, thread: 25, journal: 60, index: 30, house: 50 };
 
 // 파일 하나를 상한 줄까지. { text, status: ok|missing|unreadable|truncated }
 function 읽는다(파일, 최대) {
@@ -33,8 +39,8 @@ function 읽는다(파일, 최대) {
 }
 
 // 절 하나. 없으면 왜 없는지 적는다 — 빈 절과 없는 절을 가르기 위해서다.
-function 절(제목, 파일, 최대, 없을때) {
-  const r = 읽는다(파일, 최대);
+function 절(제목, 파일, 최대, 없을때, 미리읽은) {
+  const r = 미리읽은 || 읽는다(파일, 최대);
   if (r.status === 'missing') return 없을때 ? `## ${제목}\n(없음 — ${없을때})` : null;
   if (r.status === 'unreadable') return `## ${제목}\n(있으나 못 읽음: ${파일} — 직접 열어 보라)`;
   return `## ${제목}${r.status === 'truncated' ? ' (앞부분만 · 잘림)' : ''}\n${r.text}`;
@@ -105,6 +111,19 @@ function main() {
     const 끝 = 날짜[날짜.length - 1];
     const 빈날 = Math.floor((Date.now() - Date.parse(`${끝}T00:00:00Z`)) / 86400000);
     조각.push(`## 마지막 일지\n${끝} (${빈날}일 전) · 일지 ${날짜.length}개`);
+  }
+
+  // 8 이 과제의 규칙 (house.md)
+  // 잘렸을 때 **조용히 죽으면 안 된다.** 잘린 자리부터는 봇이 있는 줄도 모르는 규칙이고,
+  // 봇은 모르는 것을 못 지킨다. 그래서 훅이 이미 아는 것(truncated)을 말만 시킨다 — 새 장치가 없다.
+  // 줄이는 것은 사람이 한다. 봇이 스스로 줄이면 사람이 세운 규칙을 봇이 지우는 것이 된다.
+  const 규칙길 = path.join(과제, 'house.md');
+  const 규칙 = 읽는다(규칙길, 상한.house);
+  조각.push(절('이 과제의 규칙 (house.md)', 규칙길, 상한.house,
+    '아직 굳은 규칙이 없다. 사람이 "앞으로 이렇게 해" 라고 말하면 여기에 적는다', 규칙));
+  if (규칙.status === 'truncated') {
+    조각.push(`**첫 답에 이것부터 사람에게 말하라**: 규칙 파일(house.md)이 ${상한.house}줄을 넘어 뒷부분이 안 실렸다. ` +
+      '잘린 자리부터는 지금 내가 보지 못하는 규칙이다. 무엇을 뺄지 사람에게 고르게 하고 **스스로 줄이지 마라.**');
   }
 
   낸다(조각);
