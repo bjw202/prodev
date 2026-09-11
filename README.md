@@ -509,7 +509,7 @@ flowchart LR
 |---|---|---|
 | `design/v1/PRD.md` | 무엇을 왜 만드나. 시나리오 S0~S7 · 요구 F1~F13 · N1~N7 · 범위 밖 | 처음 |
 | `design/v1/ARCHITECTURE.md` | 어떻게 생겼나. 방 둘 · 저장소 둘 · 기억 다섯 층 · 흐름 넷 · 훅 셋 | 만들기 전 |
-| `design/v1/ADR.md` | 왜 그렇게 정했나. 결정 스물넷과 근거 | "왜 이렇게 했지" 싶을 때 |
+| `design/v1/ADR.md` | 왜 그렇게 정했나. 결정 스물다섯과 근거 | "왜 이렇게 했지" 싶을 때 |
 | `design/v1/TASKS.md` | 누가 언제 무엇을. 단계 넷 · 관문 넷 | 일을 고를 때 |
 | `design/v1/VERIFICATION.md` | 어떻게 검수하나. 층 A~D · 단위 시험 · 대본 다섯 · 예측표 | 관문마다 |
 
