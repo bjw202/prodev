@@ -1,7 +1,7 @@
 # 지금 코드가 어떻게 생겼나 (as-built)
 
-설계는 `design/v1/ARCHITECTURE.md` 다. **여기는 실제로 만들어진 것**을 적는다. 둘이 다르면 8절에 그 자리와 ADR 번호가 있다.
-단계가 끝날 때마다 갱신한다 (`design/v1/TASKS.md` 0절). 마지막 갱신 2026-09-10, ADR-022(방 둘) 코드 PR 뒤.
+설계는 `design/v2/ARCHITECTURE.md` 다. **여기는 실제로 만들어진 것**을 적는다. 둘이 다르면 8절에 그 자리와 ADR 번호가 있다.
+단계가 끝날 때마다 갱신한다 (`design/v2/TASKS.md` 0절). 마지막 갱신 2026-09-11, 검색 안정성 고침(ADR-026~029) PR 뒤.
 
 ---
 
@@ -10,7 +10,8 @@
 ```
 prodev/
   README.md CLAUDE.md
-  design/v1/    이 판의 설계 문서 다섯 (PRD · ARCHITECTURE · ADR · TASKS · VERIFICATION)
+  design/v1/    지난 판 (1차 설계. 손대지 않는다)
+  design/v2/    이 판의 설계 문서 다섯 (PRD · ARCHITECTURE · ADR · TASKS · VERIFICATION)
   scripts/      부품 열 (아래 2절)
   common/hooks/ 훅 셋 + places.js
   common/       settings.template.json · statusline.sh
@@ -29,7 +30,7 @@ prodev/
 | `chat.js` | minidiscord DB 를 읽기 전용으로 연다 | `rooms`·`search`(AND)·`around`·`since`·`tail`·`show` → 글 목록/JSON | 비서 · find.js · journal · 검수 |
 | `count.js` | 보낼 글의 분량 | 파일 또는 stdin → `(N자 · N줄 · 최장 N어절)` | pre-reply 훅 |
 | `index.js` | 카드·위키·inbox 머리말 → 색인 | 과제 폴더 → `index.md` · `index.json`(`errors`) · `next E\|R\|D\|N` | intake · research · schedule · pre-reply |
-| `find.js` | 층 다섯을 차례로 뒤진다 | 낱말들 → 층 · 경로/번호 · status, `find.log` | 비서 (find 스킬) |
+| `find.js` | 층 **여섯**을 차례로 뒤진다 (index · 카드 · 위키 · **과제 문서** · inbox · 대화) | 낱말들 → 층 · 경로/번호 · status, `find.log`(칸 여섯) | 비서 (find 스킬) |
 | `peek.js` | 파일 겉을 본다 | 파일 → 행 수 · 열 이름 · 앞 5행 · 형식 | intake |
 | `intake-copy.js` | 첨부를 inbox 로 들인다 | slug + 파일들 → inbox 폴더 · `.v2` · SHA-256 · `files.md` · 원본 0444. 서버 저장명이면 uuid 앞머리를 벗겨 원래 이름으로 | intake |
 | `plot.py` | csv 한 열을 그림으로 | csv + 열 → `<과제>/tmp/*.png` (없으면 한 줄 내고 exit 0) | intake |
@@ -105,13 +106,13 @@ DB 를 못 열거나 방을 몰라도 표식이 있으면 막는다 (카드 공�
 
 ## 7. 시험 묶음
 
-`npm test` — 서버가 필요 없다. **94건 · 0 실패.**
+`npm test` — 서버가 필요 없다. **98건 · 0 실패.**
 
 | 파일 | 건수 | 무엇을 |
 |---|---|---|
 | `chat.test.js` | 10 | fixture DB 하나로 여섯 명령 |
 | `count.test.js` | 4 | 세는 법 하나 |
-| `find.test.js` | 16 | 층 다섯 · 조사 떼기 · void 따라가기 |
+| `find.test.js` | 20 | 층 여섯 · 조사 떼기 · void 따라가기 · 절 단위 매칭의 거짓 양성 |
 | `hooks.test.js` | 38 | session-start 5 + 압축 직후 알림 2 · pre-compact 5 + 알림 7 · pre-reply 19 (표식 사례 17 + fail-closed 2) |
 | `index.test.js` | 8 | 머리말 부분집합 · `next` · errors |
 | `intake.test.js` | 9 | 뿌리 밖 거절 · `.v2` · 0444 · 서버 저장명의 uuid 벗기기 셋 |
@@ -132,6 +133,11 @@ cd <임시>/사본 && MINIDISCORD_DIR=<실제 minidiscord> npm run test:server
 | 무엇 | 왜 | ADR |
 |---|---|---|
 | 찾기 층 순서에서 `files.md` 가 대화보다 앞 | 대화 층에 봇이 붙여넣은 코드가 걸려 사이드카에 닿지 못했다 | ADR-016 |
+| 찾기 층이 여섯. 4층이 과제 문서(`charter.md` 절 · `schedule.md` 표 행), inbox 5 · 대화 6 | 예산 · 중간 점검 · 판정 기준이 헌장과 일정에 적혀 있는데 검색 층에 아예 없었다. 자리가 위키 뒤라 1~3층을 가로채지 못한다 | ADR-026 |
+| 과제 문서는 파일이 아니라 절 · 행 단위로 맞댄다. 덩이마다 경로가 다르다 (`charter.md#<절 이름>` · `schedule.md#<첫 칸>`) | 헌장 한 파일에 목적·예산·판정 기준이 다 있어 통째로 맞대면 서로 다른 절의 낱말이 함께 걸린다 (`예산 감광액`). 덩이 여럿이 같은 경로를 쓰면 `dedupe` 가 묶어 조용히 버린다 | ADR-027 |
+| `find.log` 한 줄에 층 **이름** 칸을 더했다 (`when·층·층 이름·건수·맨 위·물음`) | 층이 밀리면 옛 로그의 `4` 와 새 로그의 `4` 가 다른 뜻이 되어 주간 계측이 조용히 어긋난다 | ADR-026 |
+| 카드 `## 결과` 는 갈래별 요약 표와 원본 실마리를 **둘 다**. `conditions` 에 가르는 축 · `aliases` 채우기 | v1 의 "또는" 을 봇이 짧은 쪽으로만 읽어, 이상 자리만 실은 카드가 이상한 것만 답했다 | ADR-028 |
+| 대본 시험을 미니디스코드 없이 세션 대 세션으로 | 서버·계정·토큰·방 걸음이 사라져 되풀이가 싸진다. 대신 `pre-reply` 훅이 안 걸려 셋을 못 잰다 (`docs/launch.md` 11절) | ADR-029 |
 | `paper/sections/<절>.md` · `<산출물>.review.md` | 설계에 자리가 없던 둘. 통과 전 초안과 원고를 갈라야 했고, F8 이 판정 파일을 요구한다 | ADR-017 |
 | 알림이 Bearer+JSON 이 아니라 쿠키+multipart | 서버가 Bearer 를 안 읽고(401) 글 올리기는 multipart 만 받는다(406). `-F` 가 아니라 `--form-string` — `-F` 는 `@TO(` 를 파일 경로로 읽는다 | ADR-018 |
 | 파일 뿌리를 deny 하지 않는다 | 파일 뿌리가 과제 저장소들의 부모라, 막으면 봇이 헌장을 못 쓴다. 0층 불변은 0444 와 git 이 지킨다 | ADR-019 |
