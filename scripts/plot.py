@@ -16,6 +16,17 @@ import csv
 import os
 import sys
 
+# 내는 글은 언제나 UTF-8 이다. 윈도우 파이썬은 stdout 을 **콘솔 코드페이지**로 인코딩하는데
+# (한국어 기계면 cp949) 이 글을 읽는 쪽 — 노드(peek·intake)와 봇의 Bash 도구 — 은 UTF-8 로 읽는다.
+# 그러면 "그림: <경로>" 와 "못 그렸다: <까닭>" 이 `?????` 로 깨진 채 카드에 들어간다. 오류는 안 난다
+# (2026-09-12 윈도우 실측). 부르는 쪽의 환경변수에 기대지 않고 이 파일이 스스로 못 박는다 —
+# 봇이 Bash 로 직접 부르는 자리도 있어서다. 맥·리눅스는 이미 UTF-8 이라 아무것도 바뀌지 않는다.
+for _스트림 in (sys.stdout, sys.stderr):
+    try:
+        _스트림.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError):     # 파이썬 3.6 이하거나 다시 설정할 수 없는 스트림
+        pass
+
 
 def die_soft(msg):
     print("못 그렸다: %s" % msg)
