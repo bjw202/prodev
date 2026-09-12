@@ -121,7 +121,12 @@ before(async () => {
   상태.botDir = path.join(상태.repo, 'bots', 봇);   // 실제 저장소가 아니라 사본이다
 
   console.log(`  임시 서버: ${상태.url} · DB 폴더 ${상태.dataDir}`);
-  상태.child = spawn('npx', ['tsx', 'server/src/index.ts'], {
+  // npx 를 부르지 않는다. 윈도우에는 실행 가능한 'npx' 가 없고('npx.cmd' 뿐이다) 노드는 .cmd 를 셸 없이
+  // 띄우지 않는다 — 그대로 두면 spawn 이 ENOENT 로 죽어 이 파일의 시험 열일곱이 통째로 안 돈다
+  // (2026-09-12 실측). shell:true 로 우회하면 이번에는 kill 이 셸만 죽이고 서버가 남아 시험이 안 끝난다.
+  // 그래서 tsx 의 CLI 를 노드로 바로 띄운다 — 자식이 하나뿐이라 kill 이 그대로 먹고, 세 플랫폼이 같다.
+  const TSX = path.join(MINIDISCORD, 'node_modules', 'tsx', 'dist', 'cli.mjs');
+  상태.child = spawn(process.execPath, [TSX, 'server/src/index.ts'], {
     cwd: MINIDISCORD, stdio: ['ignore', 'ignore', 'pipe'],
     env: {
       ...process.env,
@@ -223,7 +228,10 @@ test('setup — bots/<이름>/.claude/settings.json 에 훅 셋과 env 셋이 �
   assert.strictEqual(s.hooks.PreToolUse[0].matcher, 'mcp__minidiscord-channel__reply');
   for (const [사건, 파일] of [['SessionStart', 'session-start.js'], ['PreCompact', 'pre-compact.js'], ['PreToolUse', 'pre-reply.js']]) {
     const cmd = s.hooks[사건][0].hooks[0].command;
-    assert.ok(cmd.includes(path.join('common', 'hooks', 파일)), `${사건} 이 ${파일} 을 안 가리킨다: ${cmd}`);
+    // 구분자를 맞춰 놓고 본다. 윈도우에서는 이 명령이 섞여 나온다 (`C:\…\hooks/session-start.js`) —
+    // 앞쪽은 path.join 이, 뒤쪽 슬래시는 settings 틀이 박은 것이다. 윈도우가 둘 다 받으므로 동작은 같다.
+    const 슬래시 = p => p.replace(/\\/g, '/');
+    assert.ok(슬래시(cmd).includes(`common/hooks/${파일}`), `${사건} 이 ${파일} 을 안 가리킨다: ${cmd}`);
     assert.ok(path.isAbsolute(cmd.replace(/^node /, '')), `훅 경로가 절대 경로가 아니다: ${cmd}`);
   }
   assert.strictEqual(s.hooks.PreCompact[0].hooks[0].timeout, 180);
@@ -315,8 +323,9 @@ test('setup settings — 파일 뿌리가 과제 폴더의 부모일 때도 deny
     assert.deepStrictEqual(덮는것, [], `deny 가 과제 폴더를 덮는다 — 봇이 charter.md 를 못 쓴다: ${덮는것.join(' · ')}`);
 
     // 서버 업로드 폴더는 그대로 읽기 전용이어야 한다 (그 자리는 남의 원본이다)
-    const 서버업로드 = path.join(뿌리, 'mddata', 'uploads');
-    assert.ok(s.permissions.deny.some(d => d.includes(서버업로드.replace(/^\//, ''))),
+    // 허용 패턴은 언제나 슬래시 꼴이다. 윈도우의 path.join 은 역슬래시를 주므로 맞춰 놓고 본다.
+    const 서버업로드 = path.join(뿌리, 'mddata', 'uploads').replace(/\\/g, '/');
+    assert.ok(s.permissions.deny.some(d => d.replace(/\\/g, '/').includes(서버업로드.replace(/^\//, ''))),
       '서버 업로드 폴더까지 열어 버렸다');
   } finally {
     fs.rmSync(사본, { recursive: true, force: true });
@@ -348,7 +357,18 @@ test('setup cron — crontab 두 줄을 stdout 으로만 낸다', () => {
   }
 });
 
-test('setup cron — 낸 줄을 그대로 서버에 보내면 200 이고 글이 방에 남는다 (ADR-018)', async () => {
+// 윈도우에서는 건너뛴다. 이 칸은 crontab 줄을 **셸에 그대로 먹여** 보는 시험인데,
+//   · 윈도우에는 crontab 이 없고, 자동 브리핑도 두지 않기로 했다 (2026-09-11 결정 · WINDOWS.md 5.1 의 5)
+//   · 게다가 MSYS 셸이 native curl 에 인자를 넘길 때 한글을 ANSI 코드페이지로 떨어뜨려
+//     '@TO(prodev-<한글>-bot)' 이 깨진다 (2026-09-12 실측: 400 · 봇 이름이 `prodev-????-bot`).
+//     시스템 코드페이지를 UTF-8 로 바꾸지 않는 한 셸을 무엇으로 잡아도 같다 — LC_ALL 로도 안 풀린다.
+// 실제로 쓰는 알림 경로(훅 → node execFileSync → curl)는 인자가 UTF-16 으로 그대로 가서 멀쩡하고,
+// 그쪽은 hooks 시험과 아래 ADR-024 칸이 잡는다. 그래서 여기만 플랫폼으로 가른다.
+const cron줄시험건너뜀 = process.platform === 'win32'
+  ? '윈도우: crontab 이 없고 MSYS 셸이 한글 인자를 코드페이지로 떨어뜨린다 (ADR-018 의 알림 경로 자체는 훅 시험이 잡는다)'
+  : false;
+
+test('setup cron — 낸 줄을 그대로 서버에 보내면 200 이고 글이 방에 남는다 (ADR-018)', { skip: cron줄시험건너뜀 }, async () => {
   // 낸 줄을 눈으로 읽고 "되겠지" 하지 않는다. 진짜 서버에 그대로 쏴 본다.
   const 본방 = (await api('GET', '/api/rooms')).body.active.find(r => r.name === `prodev-${과제}`);
   assert.ok(본방, '본방이 없다');

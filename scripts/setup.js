@@ -125,7 +125,14 @@ const 봇이름 = 과제 => `prodev-${과제}-bot`;
 // 훅과 cron 이 방에 알림 글을 올릴 때 쓰는 **사람 계정** (ADR-018). 봇 글은 게이트웨이만 보낼 수 있다.
 // 이름을 영어로 둔다 — 사람이 코드와 채팅에서 마주치는 이름이기 때문이다 (ADR-024).
 const 알림계정 = 'prodev-notify';
-const pat = p => '//' + p.replace(/\\/g, '/').replace(/^\//, '');    // Claude Code 권한 패턴
+// Claude Code 권한 패턴. 맥·리눅스는 절대 경로 앞에 '//' 를 붙인다.
+// 윈도우에서는 붙이지 않는다 — 붙이면 한 건도 안 맞아 봇이 과제 폴더에 아무것도 못 쓴다.
+// 2026-09-12 실측(윈도우 11 · Claude Code 2.1.269): 같은 경로를 세 꼴로 넣고 봇에게 쓰게 시켜 보니
+//   Edit(//C:/…/**) 거부 · Edit(C:/…/**) 통과 · Edit(C:\…\**) 통과.
+const pat = p => {
+  const s = p.replace(/\\/g, '/');
+  return process.platform === 'win32' ? s : '//' + s.replace(/^\//, '');
+};
 // 윗자리가 아랫자리를 품는가 (같은 자리도 품는 것으로 본다). deny 가 과제 폴더를 덮는지 볼 때 쓴다.
 const 덮는다 = (윗자리, 아랫자리) => {
   const a = path.resolve(윗자리), b = path.resolve(아랫자리);
