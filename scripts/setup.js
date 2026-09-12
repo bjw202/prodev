@@ -140,6 +140,13 @@ const 덮는다 = (윗자리, 아랫자리) => {
 };
 const log = m => console.log('  ' + m);
 const esc = s => s.replace(/\\/g, '\\\\');
+// **셸이 읽는 값**(훅 명령 셋 · statusLine)은 슬래시로 쓴다. Claude Code 는 윈도우에서 이것들을
+// bash 로 돌리는데, bash 가 역슬래시를 escape 로 먹어 `C:\a\b` 가 `C:ab` 로 뭉개진다.
+// 그러면 훅 셋이 `Cannot find module` 로 통째로 죽는다 — 그런데 훅은 non-blocking 이라
+// 세션은 그대로 떠서 **밖에서는 봇이 멀쩡해 보인다** (2026-09-12 실측).
+// 노드도 윈도우 API 도 슬래시를 받으므로 플랫폼을 가르지 않는다. posix 에서는 값이 그대로다.
+// env 와 additionalDirectories 는 셸을 안 거치므로 여기에 넣지 않는다 — 그쪽은 실제 경로여야 한다.
+const 셸경로 = s => s.replace(/\\/g, '/');
 
 function readEnv(file) {
   const out = {};
@@ -244,7 +251,7 @@ function 설정빚기({ 과제폴더, 봇폴더, 봇, DB, UPLOADS }) {
     .replace(/\{\{BOT\}\}/g, pat(봇폴더))
     .replace(/\{\{PRODEV\}\}/g, pat(PRODEV))
     .replace(/\{\{UPLOADS\}\}/g, pat(UPLOADS))
-    .replace(/\{\{HOOKS\}\}/g, esc(path.join(PRODEV, 'common', 'hooks')))
+    .replace(/\{\{HOOKS\}\}/g, esc(셸경로(path.join(PRODEV, 'common', 'hooks'))))
     .replace(/\{\{PROJECT_DIR\}\}/g, esc(과제폴더))
     .replace(/\{\{UPLOADS_DIR\}\}/g, esc(UPLOADS))
     .replace(/\{\{PRODEV_DIR\}\}/g, esc(PRODEV))
@@ -254,7 +261,7 @@ function 설정빚기({ 과제폴더, 봇폴더, 봇, DB, UPLOADS }) {
     // 훅이 방에 알릴 때 쓴다. 없으면 기본 3000 을 보고, 시험 서버가 딴 포트면 조용히 건너뛴다
     // (T3.M 재생에서 훅 로그가 "서버나 알림 계정이 없다" 였다).
     .replace(/\{\{URL\}\}/g, esc(URL_))
-    .replace(/\{\{STATUSLINE\}\}/g, esc(path.join(PRODEV, 'common', 'statusline.sh')))
+    .replace(/\{\{STATUSLINE\}\}/g, esc(셸경로(path.join(PRODEV, 'common', 'statusline.sh'))))
     .replace(/\{\{PATH\}\}/g, esc(BOT_PATH))
     .replace('"{{AUTOCOMPACT}}"', String(AUTOCOMPACT)));
 
