@@ -140,8 +140,14 @@ function main() {
     if (opt.since) { where.push('m.created_at >= ?'); args.push(opt.since); }
     if (opt.until) { where.push('m.created_at < ?'); args.push(opt.until); }
     const hits = [];
+    // 준비된 문장을 **변수에 담아** 되풀이가 끝날 때까지 산 채로 둔다.
+    // 담지 않으면 그 문장은 임시값이라 되풀이 도중에 GC 가 회수할 수 있고, 그러면
+    // `Error: statement has been finalized (ERR_INVALID_STATE)` 로 죽는다 —
+    // Node 22 의 실험판 node:sqlite 에서 실제로 그랬다 (윈도우 실측 2026-09-12, find.js 6층이 통째로 못 돌았다).
+    // Node 24 에서는 우연히 안 죽지만 문장 수명을 운에 맡기는 것은 그대로다. 플랫폼과 무관한 고침이다.
+    const 문장 = db.prepare(`${BASE} WHERE ${where.join(' AND ')} ORDER BY m.id DESC`);
     // 최근 것부터 훑다가 limit 만큼 차면 멈춘다. 전체를 메모리에 올리지 않는다.
-    for (const row of db.prepare(`${BASE} WHERE ${where.join(' AND ')} ORDER BY m.id DESC`).iterate(...args)) {
+    for (const row of 문장.iterate(...args)) {
       const hay = norm(row.body);
       if (needles.every(n => hay.includes(n))) { hits.push(row); if (hits.length >= limit) break; }
     }
