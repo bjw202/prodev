@@ -58,7 +58,9 @@ function 일지날짜들(과제) {
   } catch { return []; }
 }
 
-function main() {
+// 압축 직후 알림 하나 때문에 async 다 (places.js 의 알린다 가 fetch 를 쓴다 — 까닭은 거기 적었다).
+// additionalContext 는 그 전에 이미 stdout 으로 나가므로, 알림이 늦어도 세션이 뜨는 것을 막지 않는다.
+async function main() {
   let 들어온것 = {};
   try { 들어온것 = JSON.parse(fs.readFileSync(0, 'utf8') || '{}'); } catch {}
   const 깨어남 = 들어온것.source || 'startup';
@@ -134,7 +136,7 @@ function main() {
   //
   // additionalContext 를 낸 **뒤**에 보낸다. 알림이 늦거나 실패해도 세션이 뜨는 것을 막지 않는다.
   if (깨어남 === 'compact') {
-    const 결과 = P.알린다('정리가 끝났습니다. 이어서 하려면 말을 걸어 주세요.', P.알릴방(들어온것.chat_id));
+    const 결과 = await P.알린다('정리가 끝났습니다. 이어서 하려면 말을 걸어 주세요.', P.알릴방(들어온것.chat_id));
     try { fs.appendFileSync(`${P.handoffFile()}.log`, `${new Date().toISOString()}\tsession-start\t알림:${결과}\n`); } catch {}
   }
 }
@@ -145,4 +147,10 @@ function 낸다(조각) {
   }));
 }
 
-main();
+// async 가 된 뒤로는 던진 것이 unhandled rejection 이 되어 exit 1 이 된다. 이 훅이 죽으면
+// 헌장·일정·일지가 안 실린 채 세션이 뜬다 — 그것을 오류로 알려야 하므로 stderr 에 한 줄 남기고
+// 0 으로 끝낸다 (세션은 막지 않는다).
+main().catch(e => {
+  try { process.stderr.write(`session-start: ${(e && e.message) || e}\n`); } catch {}
+  process.exit(0);
+});
