@@ -60,25 +60,50 @@ const { 갈래들: 갈래 } = require('../common/hooks/places.js');
 //                                                            · Bash(mkdir:*) · Bash(date:*)
 // 지우는 명령(rm · mv)은 열지 않는다 — 0층은 불변이고, 지우지 않고 void 로 남긴다.
 
+// ── Git Bash — 윈도우에서 Bash 도구가 무엇을 부르는가 (ADR-033) ────────────
+// 봇은 --setting-sources project,local 이라 user 범위 설정을 못 읽는다. 그래서 WINDOWS.md 126행이
+// 적어 둔 길을 사람이 손으로 넣는 대신 **setup 이 봇 설정에 박는다.** 환경변수로 덮을 수 있다.
+// 맥·리눅스에서도 키는 남고 값도 비지 않는다 — 그 자리에 Git Bash 가 없으면 Claude Code 가 안 볼 뿐이라 무해하다.
+// (아래 PATH 도 이 값에서 Git 설치 자리를 역산하므로 PATH 보다 먼저 정한다.)
+const GIT_BASH = process.env.CLAUDE_CODE_GIT_BASH_PATH || 'C:\\Program Files\\Git\\bin\\bash.exe';
+
 // ── PATH — crew 에서 그대로 가져온다. 까닭도 그대로다 ──────────────────────
 // 봇은 --setting-sources project,local 로 떠서 user 범위를 읽지 않는다. ~/.claude.json 의 env.PATH 가
 // "$PATH:..." 처럼 글자 그대로 들어 있으면 /usr/bin 과 /bin 이 통째로 빠져 git·ls·grep 이 전부 죽는다.
 // 설정의 env 값은 셸을 거치지 않는다. 그래서 변수 참조가 든 조각을 버리고 실제로 있는 폴더만 남긴다.
-const STD_DIRS = process.platform === 'win32'
-  ? [path.join(process.env.SystemRoot || 'C:\\Windows', 'System32'), process.env.SystemRoot || 'C:\\Windows']
+const 윈도우 = process.platform === 'win32';
+const GIT_DIR = 윈도우 ? path.dirname(path.dirname(GIT_BASH)) : null;   // <Git>/bin/bash.exe → <Git>
+// 윈도우에서 **PATH 앞에** 붙일 자리. Git 이 주는 유닉스 도구 둘이다 (bash · sh · ls · mkdir · date …).
+//
+// 왜 뒤가 아니라 앞인가: 이름이 겹치는 자리가 있다. System32 에도 `find.exe` 와 `sort.exe` 가
+// 있는데 **전혀 다른 프로그램**이다. 뒤에 붙이면 그쪽이 먼저 잡혀, 있는데도 엉뚱하게 동작한다
+// — 없는 것보다 나쁘다 (오류가 아니라 틀린 결과로 나온다).
+//
+// 왜 넣는가: setup 은 **자기가 도는 창의 PATH 를 그대로 봇 설정(env.PATH)에 박고**, 봇은
+// --setting-sources project,local 로 떠서 사용자 설정을 안 읽는다 — 그 값이 봇의 전부다.
+// 그런데 PowerShell 기본 PATH 에는 Git\bin · Git\usr\bin · Git\mingw64\bin 이 하나도 없다
+// (2026-09-12 윈도우 11 실측). 그대로 setup 을 돌리면 봇이 ls · mkdir · date 를 잃고,
+// 그것은 오류가 아니라 **승인 창**으로 나타나 방을 더럽힌다. 사람이 창마다 PATH 를 손으로
+// 고치는 일을 setup 이 대신한다 (WINDOWS.md 5.1 의 3 이 적어 둔 자리를 코드로 옮긴 것이다).
+const FIRST_DIRS = 윈도우 ? [path.join(GIT_DIR, 'bin'), path.join(GIT_DIR, 'usr', 'bin')] : [];
+const STD_DIRS = 윈도우
+  ? [path.join(process.env.SystemRoot || 'C:\\Windows', 'System32'), process.env.SystemRoot || 'C:\\Windows',
+    path.join(GIT_DIR, 'mingw64', 'bin')]     // pdftotext 가 여기 산다 (peek.js 의 pdf 층)
   : ['/usr/bin', '/bin', '/usr/sbin', '/sbin', '/usr/local/bin', '/opt/homebrew/bin'];
-const NEEDED = process.platform === 'win32'
-  ? ['git.exe', 'node.exe']
-  : ['git', 'node', 'ls', 'cat', 'head', 'tail', 'grep', 'sed', 'awk', 'wc', 'find', 'sort', 'date', 'python3'];
+// 점검 목록은 **플랫폼을 가르지 않는다.** 윈도우에서 git·node 둘만 보던 탓에 grep 이 없어도
+// "명령 2개 모두 풀림" 이라고 초록으로 지나갔다 (WINDOWS.md 5.1 의 2). 재는 것이 다르면
+// 같은 작업판이라고 할 수 없다 — 이름은 같고, `.exe` 를 붙여 찾는 일은 probe() 가 한다.
+const NEEDED = ['git', 'node', 'ls', 'cat', 'head', 'tail', 'grep', 'sed', 'awk', 'wc', 'find', 'sort', 'date', 'mkdir', 'python3'];
 
 function buildPath() {
   const seen = new Set(); const out = [];
   const push = d => {
     if (!d || d.includes('$') || d.includes('%') || !path.isAbsolute(d)) return;
-    const k = process.platform === 'win32' ? d.toLowerCase() : d;
+    const k = 윈도우 ? d.toLowerCase() : d;
     if (seen.has(k) || !fs.existsSync(d)) return;
     seen.add(k); out.push(d);
   };
+  for (const d of FIRST_DIRS) push(d);         // posix 에서는 빈 목록이다
   for (const d of (process.env.PATH || '').split(path.delimiter)) push(d);
   for (const d of STD_DIRS) push(d);
   return out.join(path.delimiter);
@@ -97,12 +122,6 @@ function probe(pathValue) {
 
 const BOT_PATH = buildPath();
 process.env.PATH = BOT_PATH;
-
-// ── Git Bash — 윈도우에서 Bash 도구가 무엇을 부르는가 (ADR-033) ────────────
-// 봇은 --setting-sources project,local 이라 user 범위 설정을 못 읽는다. 그래서 WINDOWS.md 126행이
-// 적어 둔 길을 사람이 손으로 넣는 대신 **setup 이 봇 설정에 박는다.** 환경변수로 덮을 수 있다.
-// 맥·리눅스에서도 키는 남고 값도 비지 않는다 — 그 자리에 Git Bash 가 없으면 Claude Code 가 안 볼 뿐이라 무해하다.
-const GIT_BASH = process.env.CLAUDE_CODE_GIT_BASH_PATH || 'C:\\Program Files\\Git\\bin\\bash.exe';
 
 // ── 이름과 자리 ───────────────────────────────────────────
 
@@ -125,7 +144,14 @@ const 봇이름 = 과제 => `prodev-${과제}-bot`;
 // 훅과 cron 이 방에 알림 글을 올릴 때 쓰는 **사람 계정** (ADR-018). 봇 글은 게이트웨이만 보낼 수 있다.
 // 이름을 영어로 둔다 — 사람이 코드와 채팅에서 마주치는 이름이기 때문이다 (ADR-024).
 const 알림계정 = 'prodev-notify';
-const pat = p => '//' + p.replace(/\\/g, '/').replace(/^\//, '');    // Claude Code 권한 패턴
+// Claude Code 권한 패턴. 맥·리눅스는 절대 경로 앞에 '//' 를 붙인다.
+// 윈도우에서는 붙이지 않는다 — 붙이면 한 건도 안 맞아 봇이 과제 폴더에 아무것도 못 쓴다.
+// 2026-09-12 실측(윈도우 11 · Claude Code 2.1.269): 같은 경로를 세 꼴로 넣고 봇에게 쓰게 시켜 보니
+//   Edit(//C:/…/**) 거부 · Edit(C:/…/**) 통과 · Edit(C:\…\**) 통과.
+const pat = p => {
+  const s = p.replace(/\\/g, '/');
+  return process.platform === 'win32' ? s : '//' + s.replace(/^\//, '');
+};
 // 윗자리가 아랫자리를 품는가 (같은 자리도 품는 것으로 본다). deny 가 과제 폴더를 덮는지 볼 때 쓴다.
 const 덮는다 = (윗자리, 아랫자리) => {
   const a = path.resolve(윗자리), b = path.resolve(아랫자리);
@@ -133,6 +159,13 @@ const 덮는다 = (윗자리, 아랫자리) => {
 };
 const log = m => console.log('  ' + m);
 const esc = s => s.replace(/\\/g, '\\\\');
+// **셸이 읽는 값**(훅 명령 셋 · statusLine)은 슬래시로 쓴다. Claude Code 는 윈도우에서 이것들을
+// bash 로 돌리는데, bash 가 역슬래시를 escape 로 먹어 `C:\a\b` 가 `C:ab` 로 뭉개진다.
+// 그러면 훅 셋이 `Cannot find module` 로 통째로 죽는다 — 그런데 훅은 non-blocking 이라
+// 세션은 그대로 떠서 **밖에서는 봇이 멀쩡해 보인다** (2026-09-12 실측).
+// 노드도 윈도우 API 도 슬래시를 받으므로 플랫폼을 가르지 않는다. posix 에서는 값이 그대로다.
+// env 와 additionalDirectories 는 셸을 안 거치므로 여기에 넣지 않는다 — 그쪽은 실제 경로여야 한다.
+const 셸경로 = s => s.replace(/\\/g, '/');
 
 function readEnv(file) {
   const out = {};
@@ -237,7 +270,7 @@ function 설정빚기({ 과제폴더, 봇폴더, 봇, DB, UPLOADS }) {
     .replace(/\{\{BOT\}\}/g, pat(봇폴더))
     .replace(/\{\{PRODEV\}\}/g, pat(PRODEV))
     .replace(/\{\{UPLOADS\}\}/g, pat(UPLOADS))
-    .replace(/\{\{HOOKS\}\}/g, esc(path.join(PRODEV, 'common', 'hooks')))
+    .replace(/\{\{HOOKS\}\}/g, esc(셸경로(path.join(PRODEV, 'common', 'hooks'))))
     .replace(/\{\{PROJECT_DIR\}\}/g, esc(과제폴더))
     .replace(/\{\{UPLOADS_DIR\}\}/g, esc(UPLOADS))
     .replace(/\{\{PRODEV_DIR\}\}/g, esc(PRODEV))
@@ -247,7 +280,7 @@ function 설정빚기({ 과제폴더, 봇폴더, 봇, DB, UPLOADS }) {
     // 훅이 방에 알릴 때 쓴다. 없으면 기본 3000 을 보고, 시험 서버가 딴 포트면 조용히 건너뛴다
     // (T3.M 재생에서 훅 로그가 "서버나 알림 계정이 없다" 였다).
     .replace(/\{\{URL\}\}/g, esc(URL_))
-    .replace(/\{\{STATUSLINE\}\}/g, esc(path.join(PRODEV, 'common', 'statusline.sh')))
+    .replace(/\{\{STATUSLINE\}\}/g, esc(셸경로(path.join(PRODEV, 'common', 'statusline.sh'))))
     .replace(/\{\{PATH\}\}/g, esc(BOT_PATH))
     .replace('"{{AUTOCOMPACT}}"', String(AUTOCOMPACT)));
 

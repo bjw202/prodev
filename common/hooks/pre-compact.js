@@ -118,7 +118,9 @@ function 요약받기(물음) {
 
 // ── 몸통 ──────────────────────────────────────────────────
 
-function main() {
+// 알림 하나 때문에 async 다 (places.js 의 알린다 가 fetch 를 쓴다 — 까닭은 거기 적었다).
+// 인수인계서를 쓰는 일은 그 전에 전부 끝나므로, 알림이 늦거나 실패해도 쓰기에는 닿지 않는다.
+async function main() {
   const 결과 = { 때: new Date().toISOString(), 까닭: null };
   let 들어온것 = {};
   try { 들어온것 = JSON.parse(fs.readFileSync(0, 'utf8') || '{}'); } catch {}
@@ -161,10 +163,15 @@ function main() {
   try { fs.writeFileSync(낼곳, 본문); } catch {}
 
   // 방·토큰·보내는 꼴은 places.js 한 자리에 있다 (session-start 의 압축 직후 알림과 같아야 한다).
-  const 알림 = P.알린다('문맥을 정리 중입니다. 곧 이어서 합니다.', P.알릴방(들어온것.chat_id));
+  const 알림 = await P.알린다('문맥을 정리 중입니다. 곧 이어서 합니다.', P.알릴방(들어온것.chat_id));
   try { fs.appendFileSync(`${낼곳}.log`, `${결과.때}\t${결과.까닭 || 'ok'}\t알림:${알림}\n`); } catch {}
 
   process.exit(0);
 }
 
-main();
+// main 이 async 가 된 뒤로는 던진 것이 unhandled rejection 이 되어 **exit 1** 로 끝난다.
+// 이 훅은 압축을 막지 않는 자리(fail-open)라 그래서는 안 된다 — 까닭만 stderr 에 한 줄 남기고 0 으로 끝낸다.
+main().catch(e => {
+  try { process.stderr.write(`pre-compact: ${(e && e.message) || e}\n`); } catch {}
+  process.exit(0);
+});

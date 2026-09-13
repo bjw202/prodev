@@ -46,9 +46,24 @@ function 절(제목, 파일, 최대, 없을때, 미리읽은) {
   return `## ${제목}${r.status === 'truncated' ? ' (앞부분만 · 잘림)' : ''}\n${r.text}`;
 }
 
+// 일지 파일 이름의 날짜는 **로컬 달력**이다 — 봇이 `date` 로 오늘을 알고 그 이름으로 쓴다.
+// 그래서 이 파일에서 날짜를 다루는 자리는 전부 로컬 달력 하나로 센다 (아래 날수차 도 같다).
+const 날짜글 = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 function 어제() {
-  const d = new Date(Date.now() - 86400000);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return 날짜글(new Date(Date.now() - 86400000));
+}
+
+// 'YYYY-MM-DD' 가 오늘로부터 며칠 전인가. **달력 하루는 시각의 차가 아니라 날짜의 차다.**
+// 예전에는 `Date.now() - Date.parse(끝 + 'T00:00:00Z')` 를 24시간으로 나눴는데, 그것은
+// UTC 자정을 기준으로 재는 셈이라 시차만큼 하루가 어긋났다 — 한국(UTC+9)에서는 자정부터
+// 오전 9시 사이에 어제 일지가 '0일 전' 으로 나왔다 (2026-09-13 00:11 KST 에 시험이 붉어져 알았다).
+// 양쪽을 로컬 자정으로 맞춰 놓고 날짜만 센다. round 로 나눠 DST 로 23·25시간이 된 날에도 정수가 나온다.
+function 날수차(날짜문자열) {
+  const 오늘0시 = new Date(); 오늘0시.setHours(0, 0, 0, 0);
+  const [y, m, d] = 날짜문자열.split('-').map(Number);
+  const 그날0시 = new Date(y, m - 1, d);            // 로컬 자정으로 읽는다 ('Z' 를 붙이지 않는다)
+  return Math.round((오늘0시 - 그날0시) / 86400000);
 }
 
 function 일지날짜들(과제) {
@@ -58,7 +73,9 @@ function 일지날짜들(과제) {
   } catch { return []; }
 }
 
-function main() {
+// 압축 직후 알림 하나 때문에 async 다 (places.js 의 알린다 가 fetch 를 쓴다 — 까닭은 거기 적었다).
+// additionalContext 는 그 전에 이미 stdout 으로 나가므로, 알림이 늦어도 세션이 뜨는 것을 막지 않는다.
+async function main() {
   let 들어온것 = {};
   try { 들어온것 = JSON.parse(fs.readFileSync(0, 'utf8') || '{}'); } catch {}
   const 깨어남 = 들어온것.source || 'startup';
@@ -109,8 +126,7 @@ function main() {
     조각.push('## 마지막 일지\n(없음 — 일지를 한 번도 안 썼다)');
   } else {
     const 끝 = 날짜[날짜.length - 1];
-    const 빈날 = Math.floor((Date.now() - Date.parse(`${끝}T00:00:00Z`)) / 86400000);
-    조각.push(`## 마지막 일지\n${끝} (${빈날}일 전) · 일지 ${날짜.length}개`);
+    조각.push(`## 마지막 일지\n${끝} (${날수차(끝)}일 전) · 일지 ${날짜.length}개`);
   }
 
   // 8 이 과제의 규칙 (house.md)
@@ -134,7 +150,7 @@ function main() {
   //
   // additionalContext 를 낸 **뒤**에 보낸다. 알림이 늦거나 실패해도 세션이 뜨는 것을 막지 않는다.
   if (깨어남 === 'compact') {
-    const 결과 = P.알린다('정리가 끝났습니다. 이어서 하려면 말을 걸어 주세요.', P.알릴방(들어온것.chat_id));
+    const 결과 = await P.알린다('정리가 끝났습니다. 이어서 하려면 말을 걸어 주세요.', P.알릴방(들어온것.chat_id));
     try { fs.appendFileSync(`${P.handoffFile()}.log`, `${new Date().toISOString()}\tsession-start\t알림:${결과}\n`); } catch {}
   }
 }
@@ -145,4 +161,10 @@ function 낸다(조각) {
   }));
 }
 
-main();
+// async 가 된 뒤로는 던진 것이 unhandled rejection 이 되어 exit 1 이 된다. 이 훅이 죽으면
+// 헌장·일정·일지가 안 실린 채 세션이 뜬다 — 그것을 오류로 알려야 하므로 stderr 에 한 줄 남기고
+// 0 으로 끝낸다 (세션은 막지 않는다).
+main().catch(e => {
+  try { process.stderr.write(`session-start: ${(e && e.message) || e}\n`); } catch {}
+  process.exit(0);
+});

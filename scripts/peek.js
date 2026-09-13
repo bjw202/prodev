@@ -29,10 +29,19 @@ function human(n) {
 }
 
 // python3 도우미를 부른다. 없거나 죽으면 null 을 돌려준다 (부른 쪽이 "못 읽었다" 로 잇는다).
+//
+// stdout 을 UTF-8 로 못 박는다 (PYTHONIOENCODING). 윈도우 파이썬은 그러지 않으면 stdout 을
+// **콘솔 코드페이지**로 인코딩하는데(한국어 기계면 cp949) 노드는 UTF-8 로 읽어, 자료 요약과
+// 그림 경로의 한글이 `?????` 로 깨진 채 카드에 들어간다 — 오류는 안 난다 (2026-09-12 실측).
+// 사람의 PYTHONUTF8 환경변수에 기대지 않는다: 봇은 --setting-sources project,local 로 떠서
+// 사용자 설정을 안 읽고, 그 값 하나가 빠지면 조용히 틀린 글자가 파일에 남는다.
+// 이미 UTF-8 인 맥·리눅스에서는 같은 값을 다시 못 박는 것이라 아무것도 바뀌지 않는다.
+// 사람이 일부러 정한 값이 있으면 그것을 존중한다.
 function python(code, args) {
   try {
     const out = execFileSync('python3', ['-c', code, ...args], {
       encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 30000,
+      env: { PYTHONIOENCODING: 'utf-8', ...process.env },
     });
     return JSON.parse(out);
   } catch (e) {

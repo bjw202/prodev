@@ -71,8 +71,6 @@ function roomParts(name) {
 // 두 곳이 같은 계정 · 같은 꼴 · 같은 방을 써야 하므로 여기 한 자리에 둔다.
 // 두 곳에 따로 적으면 언젠가 갈리고, 갈리면 한쪽만 조용히 안 나간다 (이미 두 번 겪었다).
 
-const { execFileSync } = require('child_process');
-
 // 어느 방에 알리나. 앞의 것이 있으면 뒤는 안 본다.
 //   1 PRODEV_NOTIFY_ROOM        사람이 못 박은 자리
 //   2 힌트                       봉투의 chat_id 같은 것 (PreCompact 입력에는 없다)
@@ -122,18 +120,38 @@ function 알림토큰() {
 }
 
 // 방에 한 줄. 서버가 받는 꼴은 쿠키 md_session + multipart 뿐이다 (ADR-018).
-// -F 가 아니라 --form-string 이다: -F 는 '@' 로 시작하는 값을 파일 경로로 읽는다.
 // 알림 때문에 훅을 붙잡지 않는다 — 못 보내면 까닭 한 줄을 돌려주고 끝낸다 (fail-open).
-function 알린다(글, 방번호) {
+//
+// **curl 을 부르지 않는다.** 노드의 fetch + FormData 가 같은 꼴(쿠키 + multipart)을 만든다.
+// 까닭은 윈도우에서 재 본 것이다 (2026-09-12 · 윈도우 11 · 시스템 코드페이지 949):
+//   · `curl` 이라는 이름이 두 가지 프로그램을 가리키고 **둘이 다른 글자를 보낸다.**
+//     System32\curl.exe 는 한글을 UTF-8 로 보내고, Git 의 mingw64\bin\curl.exe 는
+//     ANSI 코드페이지(cp949)로 떨어뜨려 방에 `????` 가 올라간다. 셸을 거치든 노드가 직접 부르든 같다 —
+//     갈리는 것은 셸이 아니라 **그 exe 가 argv 를 ANSI 로 읽는가**다.
+//   · 그런데 어느 것이 잡히는지를 사람이 못 고른다. npm 이 PATH 를 다시 짜는 자리가 있어
+//     같은 창에서 `curl` 이 System32 인데 `npm test` 안에서는 mingw 이 잡혔다 (실측).
+//     즉 **PATH 순서가 방에 올라가는 글자를 바꾼다.** 조용히, 오류 없이.
+// fetch 는 몸을 이 프로세스 안에서 UTF-8 바이트로 만들어 소켓에 쓴다 — 셸도 PATH 도 코드페이지도
+// 한 번 지나지 않는다. 바깥 명령 의존이 하나 줄고, 세 플랫폼이 같은 길을 쓴다.
+// posix 에서 보내는 바이트는 curl 이 보내던 것과 같다 (multipart 경계 문자열만 다르다).
+async function 알린다(글, 방번호) {
   const base = process.env.MINIDISCORD_URL;
   const token = 알림토큰();
   if (!base) return '건너뜀 (MINIDISCORD_URL 이 없다)';
   if (!token) return '건너뜀 (알림 계정 토큰이 없다)';
   if (!방번호) return '건너뜀 (어느 방인지 모른다)';
   try {
-    execFileSync('curl', ['-sS', '-X', 'POST', `${base.replace(/\/$/, '')}/api/rooms/${방번호}/messages`,
-      '-b', `md_session=${token}`, '--max-time', '10', '--form-string', `body=${글}`], { stdio: 'ignore' });
-    return '보냄';
+    const 몸 = new FormData();
+    몸.append('body', String(글));
+    const r = await fetch(`${base.replace(/\/$/, '')}/api/rooms/${방번호}/messages`, {
+      method: 'POST',
+      headers: { cookie: `md_session=${token}` },
+      body: 몸,
+      signal: AbortSignal.timeout(10000),        // curl 의 --max-time 10 자리
+    });
+    // curl -sS 는 4xx 에도 0 으로 끝나 «보냄» 이라 적혔다. 상태를 본다 — 안 올라간 것을
+    // 올라갔다고 적으면 기록이 거짓이 된다 (검수가 그 기록을 근거로 쓴다).
+    return r.ok ? '보냄' : `못 보냄 (HTTP ${r.status})`;
   } catch (e) {
     return `못 보냄 (${String(e.message).split('\n')[0]})`;
   }
