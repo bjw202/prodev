@@ -90,7 +90,7 @@ node scripts/peek.js <파일>          행 수 · 열 이름 · 앞 5행 · 형�
 ## 카드
 
 번호는 `node scripts/index.js next E` 가 준다. 스스로 매기지 않는다 (한 턴에 둘이 같은 번호를 받는다).
-머리말과 절 구성은 `design/v2/ARCHITECTURE.md` 5.1 그대로. 특히:
+머리말은 `id · kind · title · date · who · room · source_msgs · confirmed_at · files · conditions · results · aliases · tags · related · status · supersedes` 차례, 절은 `## 한 줄` · `## 조건` · `## 결과` · `## 문답에서 확정한 것` · `## 한계 · 못 확인한 것` · `## 관련 카드` 차례다 — 이 줄이 규격 전부이니 설계 문서를 찾아 나서지 않는다. 특히:
 
 - `date` 는 **측정일**이다. 올린 날이 아니다.
 - `source_msgs` 는 첨부가 올라온 글 번호 **전부**.

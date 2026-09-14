@@ -205,6 +205,22 @@ test('명령 꼴 — analysis · research · intake 는 python 을 run.py 로, r
   assert.ok(r.includes('`curl` 은 쓰지 않는다'), 'reviewer 가 curl 을 막지 않는다');
 });
 
+// ── 스킬은 저장소 설계 문서를 가리키지 않는다 ─────────────────────
+// 과제 폴더에서 도는 봇은 design/ 을 못 연다. 경로를 보면 grep · find 로 과제 밖을 뒤지고, 그것이 승인 카드가 된다.
+
+test('스킬 — 어느 SKILL 본문에도 design/v<판>/ 경로가 없고, intake 는 카드 규격을 본문 한 줄로 쥔다', () => {
+  const 걸린것 = [];
+  for (const 이름 of fs.readdirSync(SKILLS, { recursive: true }).map(String)) {
+    const 파일 = path.join(SKILLS, 이름);
+    if (!fs.statSync(파일).isFile()) continue;
+    fs.readFileSync(파일, 'utf8').split('\n').forEach((줄, n) => { if (/design\/v[0-9]\//.test(줄)) 걸린것.push(`${이름}:${n + 1}`); });
+  }
+  assert.deepStrictEqual(걸린것, []);
+  const i = 스킬('intake');
+  assert.ok(i.includes('source_msgs · confirmed_at'), '머리말 칸 차례가 본문에 없다');
+  assert.ok(i.includes('`## 한계 · 못 확인한 것`'), '절 차례가 본문에 없다');
+});
+
 // ── intake 확정 청하기 (확정 조건 ④ — T3M · W2r · M5.M 에서 세 번 막혔다) ─────
 
 test('intake — 카드 번호를 밝힌 뒤 확정을 청한다 (조건 ④ 는 직전 봇 글의 카드 번호를 본다)', () => {
