@@ -138,6 +138,7 @@
 **바뀐 자리 (ADR-022)** `rooms.json` 이 아는 방 갈래는 이제 둘(본방 · `/files`)뿐이다. 방 이름표라는 쓰임은 그대로.
 
 ## ADR-022 과제 하나 = 방 둘 (본방 · files)
+> **대체됨 → ADR-039 (2026-09-15).** 방은 과제마다 하나다. 아래 글은 옛 결정으로 남긴다.
 **상태** 확정 (사람, 2026-09-10 저녁)
 **맥락** 3단계 재생 다섯을 돌린 뒤, 옛 방 묶음(본방 + 갈래 여섯)에 실제로 오간 글을 셌다: **본방 60 · 들이기 23 · 리서치 14 · 자료 1 · 특허 0 · 논문 0 · 보고 0.** 갈래 방 셋(특허 · 논문 · 보고)은 한 글도 받지 못했고, 카드 방은 한 글이었다. 봇은 방이 아니라 `PRODEV_PROJECT` 로 과제를 알므로(ADR-012) 방을 나눠도 봇이 얻는 것이 없다. 카드 방의 색인 노릇은 아무도 읽지 않았고, 봇 자신도 `find.js` 와 색인 파일로 찾는다. 그리고 비서 지침의 "갈래 방은 사람이 허락해야 연다"와 `setup.js` 의 "방을 다 만든다"가 서로 어긋나 있었다 — 지침은 열지 말라 하고 설치는 미리 다 열었다.
 **결정** 과제 하나에 방은 **둘**이다. 본방 `prodev-<과제>` (접미어 없음. 사람에게는 "오피스" 노릇) 와 `prodev-<과제>/files` (파일 올리기와 그 문답. 옛 들이기 자리). 갈래 방 다섯은 없앤다. 방 이름 접미어는 **영어만** 쓴다. 사람이 외우는 규칙은 한 줄이다 — **"말은 아무 데서나, 파일은 files 에."**
@@ -404,7 +405,7 @@
 | ② 도구 이름 | `mcp__minidiscord-channel__*` | `mcp__cockpit__*` (틀 · 훅 matcher · 허용 목록 · 시험) |
 | ③ 창구 배선 | `.mcp.json` · `.env`(봇 토큰 · 알림 토큰) · `MINIDISCORD_URL` | 없음. `MINIDISCORD_URL` 은 **빈 값** — 훅 알림은 건너뛰고, 압축 알림은 조종석이 system 글로 올린다 |
 | ④ 대화 DB · 업로드 | minidiscord 의 DB · 서버 업로드 폴더 | `MINIDISCORD_DB` = 조종석 `<dataDir>/chat.db` · `{{UPLOADS_DIR}}` = 조종석 `uploadsDir` · deny 에 `<dataDir>/cockpit.db` 의 `Read` · `Edit` · `Write` |
-| ⑤ 방 | `setup.js rooms` · `archive` · `cron` | 조종석 `open-project` · 웹 과제 열기(`POST /api/projects`)가 만든다. `rooms` · `archive` 는 안내하고 exit 1, `cron` 은 지운다 |
+| ⑤ 방 (**대체됨 → ADR-039**: 방 하나 · 방 만들기가 setup 까지) | `setup.js rooms` · `archive` · `cron` | 조종석 `open-project` · 웹 과제 열기(`POST /api/projects`)가 만든다. `rooms` · `archive` 는 안내하고 exit 1, `cron` 은 지운다 |
 | ⑥ 기동 | 봇 폴더에서 `claude --mcp-config … --dangerously-load-development-channels …` | 조종석 `serve` 가 세션을 붙든다 (`docs/launch.md` 4절) |
 | ⑦ 지침 | `CLAUDE.md` 17행 "minidiscord 방 둘" | "cockpit 방 둘" — 낱말 하나. 비서 지침 열한 줄은 그대로 |
 
@@ -416,3 +417,22 @@
 **남는 위험** ① `setup.js` 를 다시 돌리면 `settings.local.json` 을 통째로 덮는다. 사람이 손으로 더한 규칙이 있으면 사라진다 — 규칙은 틀에 더한다. ② 옛 봇 폴더의 `.env` · `.mcp.json` 은 지우지 않고 "남음" 이라고만 말한다 (사람의 파일을 지우지 않는다). 훅은 `.env` 의 알림 토큰을 여전히 읽을 수 있지만 `MINIDISCORD_URL` 이 비어 보내지 않는다 — 시험 한 칸이 이것을 못 박는다. ③ `rooms.json` 을 쓰는 곳이 없어져, `places.js` 의 "DB 를 못 열면 rooms.json" 뒷길은 조종석 판에서 늘 비어 있다. DB 를 못 열면 카드 공지 · 발송은 지금처럼 fail-closed 로 막힌다 (ADR-022).
 **재는 것** 단위 시험 — 두 장의 가름(권한은 local 에만) · 틀의 꼴 · 허용 22건과 deny 10건이 **local** 에 있음 · `mcp__cockpit__` 이름 · `MINIDISCORD_DB` = `chat.db` · 빈 `MINIDISCORD_URL` 이면 알림 0건. 서버 시험 — `setup.js` 를 사본에서 통째로 돌려 실제 두 장 · `.env` / `.mcp.json` / `rooms.json` 없음 · `rooms` / `archive` 안내와 exit 1 · 조종석 설정 없음에 까닭. **headless 세션에서 승인 창이 실제로 안 뜨는지는 조종석 W2 재측정이 잰다** — 이 저장소 시험은 세션을 띄우지 않는다.
 **결과** `common/settings.template.json` · `common/settings.local.template.json`(새) · `common/hooks/pre-reply.js`(주석) · `scripts/setup.js` · `test/setup.test.js` · `test/hooks.test.js` · `test/server/setup.test.js` · `.claude/skills/charter/SKILL.md` · `.claude/skills/close/SKILL.md` · `CLAUDE.md` 17행 · `docs/launch.md` 0 · 3 · 4절 · `docs/as-built.md` · `docs/skill-matrix.md` · `README.md`.
+
+## ADR-039 방 하나 — 확정 조건 ② 는 "같은 과제의 방", 봇은 부른 글의 첨부만 읽고 나머지는 따라잡는다
+**상태** 확정 (사람 · meta, 2026-09-14 저녁 v2 결정 · cockpit ADR-015 · 017 · 018 · 020)
+**맥락** 사람이 조종석을 처음 눌러 보고 방향을 바꿨다: 속은 cockpit, 겉은 minidiscord 화면. **방 하나 = 과제 하나 = 전용 봇 하나, files 방은 없다.** "과제원이 디스코드처럼 자유롭게 자료를 올리고 받는 것이 훨씬 효율적이다." 봇에게 가는 글은 `@TO(봇)` · `@CC(봇)` 이 있는 글뿐이고(사람끼리 말할 자리), 방 만들기가 이 저장소의 `setup.js` 를 불러 봇 폴더까지 만든다. 방 둘을 전제한 자리가 하네스에 열 곳 있었다 (cockpit `docs/ARCHITECTURE.md` 11.1).
+**결정** 넷이다.
+
+| | 전 (ADR-022 · 038 ⑤) | 후 |
+|---|---|---|
+| ① 방 | 본방 `prodev-<과제>` + `prodev-<과제>/files` | **`prodev-<과제>` 하나.** 첨부도 그 방에. 이관된 옛 files 방은 조종석이 보관하고 읽기만 된다 |
+| ② 확정 조건 ② (`pre-reply.js`) | 확정 글이 "같은 과제의 `/files` 방" | **"같은 과제의 방"** — 갈래를 보지 않는다. ① ③ ④ ⑤ 는 그대로 |
+| ③ 첨부를 읽는 때 (`prodev-orchestrator`) | 본방 첨부는 "files 방에 올려 달라" 안내, 읽지 않는다 | **`to` 글의 첨부는 읽는다**(한 턴에 한 건) · `cc` 글의 첨부는 경로만 · 봉투 없는 글의 첨부는 봇에게 안 온다 → **따라잡는 길**: `fetch_history` 결과의 `attachments` 칸(경로)으로 끌어온다 |
+| ④ 방 만들기 · 보관 (`charter` · `close` · `launch.md`) | 조종석 `open-project` 가 방 둘 · 사람이 setup 을 따로 | 조종석에서 방을 만들면 setup 까지 한다 · 닫을 때는 PL 에게 "이 방을 보관" 을 청한다 |
+
+**왜 갈래를 아예 안 보는가** "같은 과제의 방" 만 보면 새 방 하나와 이관된 옛 files 방이 둘 다 맞는다. 옛 카드의 `confirmed_at` 은 옛 files 방의 글을 가리키고, 조종석은 그 방을 옮기지 않고 보관만 한다 — 갈래를 "없음" 으로 좁히면 옛 확정 공지를 다시 올릴 때 막힌다.
+**왜 족족 읽지 않는가** 올라오는 첨부를 모두 읽으면 문맥과 값이 새고 "한 턴에 들이기는 한 건" 지침과 부딪힌다. 부르면 따라잡으면 된다 — 결과에 경로가 실려 한 번의 도구 호출이다.
+**남는 위험** ① 사람이 봉투를 지우고 말하면 봇이 조용하다(조종석 작성기가 `@TO(봇)` 을 미리 채우고 안내 글자를 낸다). ② 따라잡기의 시작점을 봇이 잘못 잡으면 오래된 파일을 들인다 — "이렇게 이해했습니다" 한 줄이 사람의 확인 자리다. ③ `weekly.sh` · `retro` 의 "카드 없는 첨부" 계측은 본방 첨부 기준으로 옮겨야 한다 — meta 몫.
+**재는 것** 단위 시험 — 확정 조건 ② 가 같은 과제의 본방 · 옛 files 방을 통과시키고 다른 과제의 방을 막는다. 스킬 · 지침 — `grep -rn "files 방\|/files 방\|방 둘\|방은 둘" CLAUDE.md common .claude/skills` 0줄. 따라잡기의 실제 모양은 meta 의 새 대본 R8 이 잰다.
+**대조 한 줄** `scripts/find.js` · `scripts/index.js` 에는 방 갈래 코드가 없다 — `files.md` 는 `inbox/*/files.md` 사이드카 이름이다 (meta M5 Q2 답). 고칠 것 없음.
+**결과** `CLAUDE.md`(지침 2줄 · 목표 · 변경표) · `common/hooks/pre-reply.js` · `common/hooks/places.js`(주석) · `.claude/skills/{prodev-orchestrator,intake,research,charter,close}/SKILL.md` · `scripts/setup.js`(안내 문장) · `docs/launch.md` · 시험.

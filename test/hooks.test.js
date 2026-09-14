@@ -563,3 +563,32 @@ test('session-start — 껐다 켠 경우(startup·resume·clear)에는 안 올�
     assert.strictEqual(S.받은것.length, 0, `${source} 에서 알림이 나갔다`);
   }
 });
+
+// ── ADR-039: 확정 조건 ② 는 "같은 과제의 방" — 갈래를 보지 않는다 ────────────
+// fixture.db 는 방 둘(1 본방 · 2 /files) 판이라 조건 ② 를 어기는 글이 없다. 사본에서 글 #1~#3(E-0001 의 자료 · 봇 읽음 · 확정)을 옮겨 잰다.
+function 방옮긴DB(옮김) {
+  const dir = tmp('adr039');
+  const db = path.join(dir, 'chat.db');
+  fs.copyFileSync(DB, db);
+  const { DatabaseSync } = require('node:sqlite');
+  const d = new DatabaseSync(db);
+  try { 옮김(d); } finally { d.close(); }
+  return db;
+}
+const E0001공지 = { hook_event_name: 'PreToolUse', tool_name: 'mcp__cockpit__reply', tool_input: { chat_id: '1', text: '[카드] E-0001 · 훅 시험 · cards/E-0001.md' } };
+
+test('pre-reply — ADR-039 확정 조건 ② — 같은 과제의 본방에서 받은 확정도 통과한다', () => {
+  const db = 방옮긴DB(d => d.prepare('UPDATE messages SET room_id = 1 WHERE id IN (1, 2, 3)').run());
+  const r = hook('pre-reply.js', E0001공지, { MINIDISCORD_DB: db, PRODEV_PROJECT: PROJECT });
+  assert.strictEqual(r.code, 0, `stderr: ${r.stderr.trim()}`);
+});
+
+test('pre-reply — ADR-039 확정 조건 ② — 다른 과제의 방에서 받은 확정은 막는다', () => {
+  const db = 방옮긴DB(d => {
+    d.prepare("INSERT INTO rooms (id, name) VALUES (3, 'prodev-남의과제')").run();
+    d.prepare('UPDATE messages SET room_id = 3 WHERE id IN (1, 2, 3)').run();
+  });
+  const r = hook('pre-reply.js', E0001공지, { MINIDISCORD_DB: db, PRODEV_PROJECT: PROJECT });
+  assert.strictEqual(r.code, 2);
+  assert.match(r.stderr, /E-0001 의 확정 글 #3 이 prodev-시험 의 방이 아니다 \(prodev-남의과제\)/);
+});

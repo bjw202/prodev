@@ -15,7 +15,7 @@
 ```
 ① 조종석 설정 · 계정            cockpit.json · init-admin · add-user   사람 (cockpit README)
 ② 과제 폴더 · 봇 설정 두 장     node scripts/setup.js --cockpit …      사람이 돌린다
-③ 과제 열기 (봇 · 방 둘)        node bin/cockpit.js open-project …     사람 (또는 웹의 과제 열기)
+③ 방 만들기 (봇 · 방 하나)        node bin/cockpit.js open-project …     사람 (또는 웹의 과제 열기)
 ④ 서버                          node bin/cockpit.js serve              사람
 ⑤ 확인                          본방에 @TO 하나                        사람
 ⑥ 재생 토큰 (T3.2 용)           cockpit session-token <이름>           사람
@@ -96,7 +96,7 @@ node scripts/setup.js --project <과제이름> --cockpit <루트>/cockpit/cockpi
 
 ```bash
 cd <루트>/cockpit
-node bin/cockpit.js open-project <과제> --bot-name <봇>     # 봇 한 줄 · 방 둘 · 세션 한 줄
+node bin/cockpit.js open-project <과제> --bot-name <봇>     # 봇 한 줄 · 방 하나 · 세션 한 줄 (v2: 웹의 새 방 · POST /api/rooms 는 setup 까지 한다, --no-setup 은 건너뜀)
 node bin/cockpit.js serve                                   # 서버. 세션을 켜고 브라우저로 들어온다
 ```
 
@@ -104,7 +104,7 @@ node bin/cockpit.js serve                                   # 서버. 세션을 
 
 | 조각 | 왜 이래야 하나 |
 |---|---|
-| `<과제>` = `setup.js` 의 과제 이름 | 방 둘이 `prodev-<과제>` · `prodev-<과제>/files` 로 생긴다 (ADR-022). 봇 폴더 기본은 `<botsDir>/prodev-<과제>-bot` — setup 이 만든 자리와 같다 |
+| `<과제>` = `setup.js` 의 과제 이름 | 방 하나가 `prodev-<과제>` 로 생긴다 (ADR-039). 봇 폴더 기본은 `<botsDir>/prodev-<과제>-bot` — setup 이 만든 자리와 같다 |
 | `--bot-name <봇>` | 봉투(`@TO(…)`)와 화면 기본값이 쓰는 이름. 주지 않으면 `prodev-<과제>-bot`. 옛 대본은 `prodev-worktogether-비서` 꼴이라 그 이름으로 연다 |
 | `--bot-dir <봇 폴더>` | 조종석 `botsDir` 이 이 저장소의 `bots/` 가 아닐 때만. setup 이 출력 ④ 에 그 경로를 적어 준다 |
 | 세션 cwd = 봇 폴더 | 조종석이 SDK 세션을 봇 폴더에서 띄운다. 두 장의 설정이 여기서 읽히고 `PRODEV_BOT_DIR` 도 조종석이 넣는다 |
