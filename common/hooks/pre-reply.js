@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// PreToolUse 훅 — 봇이 `mcp__minidiscord-channel__reply` 를 부르기 직전에 선다.
+// PreToolUse 훅 — 봇이 `mcp__cockpit__reply` 를 부르기 직전에 선다.
 //
 // 막을 때는 **exit 2 + stderr 에 이유 한 줄**. 그 한 줄을 봇이 읽고 스스로 고친다.
 // 통과는 exit 0, 아무 말도 하지 않는다.

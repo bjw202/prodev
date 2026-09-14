@@ -1,18 +1,21 @@
 #!/usr/bin/env node
 // setup.js — 사람이 돌린다. 봇은 이 파일을 쓰지 않는다.
 //
-//   node scripts/setup.js [--project <이름|폴더>]  설치: 과제 폴더(없으면 만들고 git init) · 봇 폴더 · settings(훅 배선 · env 셋) · .env · .mcp.json
-//   node scripts/setup.js rooms <과제>             방 둘을 만들고 봇을 둘 다 참여시킨다 (API)
-//   node scripts/setup.js cron                     crontab 두 줄을 낸다 (08:00 브리핑 · 18:30 일지, 쿠키 + multipart — ADR-018)
-//   node scripts/setup.js archive <방>             방 하나를 보관한다
+//   node scripts/setup.js [--project <이름|폴더>] [--cockpit <cockpit.json>]
+//       설치: 과제 폴더(없으면 만들고 git init) · 봇 폴더 · 설정 두 장
+//         .claude/settings.json        훅 셋 배선 · env · statusLine · 자동 압축
+//         .claude/settings.local.json  허용 · 거부 목록 · 바깥 폴더 (ADR-038)
 //
-// crew 의 setup.js 에서 왔다. 다른 점 셋:
-//   ① 봇이 다섯이 아니라 **하나**다 (prodev-<과제>-bot)
-//   ② 방을 하나가 아니라 **둘**로 연다 — 본방과 <과제>/files (ARCHITECTURE 2절 · ADR-022)
-//   ③ 훅이 하나가 아니라 셋이다 (session-start · pre-compact · pre-reply)
+// 봇은 조종석(cockpit)이 Claude Agent SDK 세션으로 붙든다 (ADR-038). 그래서 여기서 **하지 않는 것**:
+//   · 채팅 서버에 봇 등록 · 토큰 받기 · .env · .mcp.json — 도구(mcp__cockpit__*)는 조종석이 세션에 직접 준다
+//   · 방 만들기(rooms) · 보관(archive) — 조종석의 `open-project` · 웹 과제 열기가 한다
+//   · crontab 줄(cron) — 자동 브리핑을 두지 않기로 했다. 사람이 말을 걸 때 brief · journal 이 뜬다
 //
-// 자리: minidiscord 는 기본 <저장소>/../minidiscord. 다른 곳이면 MINIDISCORD_DIR.
-//       서버 주소는 MINIDISCORD_URL (기본 http://127.0.0.1:3000).
+// 자리: 조종석 설정 한 장(cockpit.json)에서 읽는다. 찾는 순서는 --cockpit > COCKPIT_CONFIG > <저장소>/../cockpit/cockpit.json.
+//   dataDir     → MINIDISCORD_DB = <dataDir>/chat.db · deny 에 <dataDir>/cockpit.db (Read · Edit · Write)
+//   uploadsDir  → {{UPLOADS_DIR}} (읽기로 열고 쓰기는 deny)
+//   projectsDir → --project 에 이름만 줬을 때 과제 폴더를 만드는 자리
+// 조종석이 쓰는 값을 사람이 두 번 적지 않게 하려는 것이다 — 두 곳에 적으면 언젠가 갈린다.
 
 const fs = require('fs');
 const path = require('path');
@@ -20,17 +23,7 @@ const { execSync } = require('child_process');
 
 const PRODEV = path.resolve(__dirname, '..');
 const ROOT = path.dirname(PRODEV);
-const MINIDISCORD = process.env.MINIDISCORD_DIR || path.join(ROOT, 'minidiscord');
-const CHANNEL = path.join(MINIDISCORD, 'channel', 'dist', 'index.js');
-const URL_ = (process.env.MINIDISCORD_URL || 'http://127.0.0.1:3000').replace(/\/$/, '');
-const WS = process.env.MINIDISCORD_SERVER || URL_.replace(/^http/, 'ws') + '/bot';
 const AUTOCOMPACT = Number(process.env.PRODEV_AUTOCOMPACT || 650000);
-const CLAUDE_ARGS = ['--setting-sources', 'project,local', '--strict-mcp-config', '--mcp-config', '.mcp.json',
-  '--dangerously-load-development-channels', 'server:minidiscord-channel'];
-
-// 과제 하나 = 방 둘. 본방은 접미어가 없고 나머지 하나가 <접두어>/files 다 (ARCHITECTURE 2절 · ADR-022).
-// 이름은 places.js 한 자리에서 온다 — 훅(pre-reply)의 확정 조건 ② 와 같은 값이어야 한다.
-const { 갈래들: 갈래 } = require('../common/hooks/places.js');
 
 // ── 허용 목록은 왜 이 꼴인가 ──────────────────────────────────────────────
 // 바탕은 ../crew/common/settings.template.json 의 33건이었고, 거기에 회차 5 의 승인 31회를 덮는 것을
@@ -123,27 +116,44 @@ function probe(pathValue) {
 const BOT_PATH = buildPath();
 process.env.PATH = BOT_PATH;
 
+
 // ── 이름과 자리 ───────────────────────────────────────────
+
+// 조종석 설정 한 장에서 자리 넷을 읽는다 (ADR-038). 조종석이 스스로 검사하는 값이라 여기서는 있는지만 본다.
+function 조종석설정(opt = {}) {
+  const 파일 = path.resolve(opt.cockpit || process.env.COCKPIT_CONFIG || path.join(ROOT, 'cockpit', 'cockpit.json'));
+  if (!fs.existsSync(파일)) {
+    throw new Error(`조종석 설정이 없다: ${파일} — --cockpit <cockpit.json> 을 주거나 COCKPIT_CONFIG 를 설정하라 (cockpit 저장소의 cockpit.example.json 을 베껴 채운다)`);
+  }
+  let j;
+  try { j = JSON.parse(fs.readFileSync(파일, 'utf8')); }
+  catch (e) { throw new Error(`조종석 설정을 못 읽는다: ${파일} (${String(e.message).split('\n')[0]})`); }
+  const 빠진것 = ['dataDir', 'uploadsDir', 'projectsDir'].filter(k => typeof j[k] !== 'string' || !j[k]);
+  if (빠진것.length) throw new Error(`조종석 설정에 ${빠진것.join(' · ')} 이 없다: ${파일}`);
+  const dataDir = path.resolve(j.dataDir);
+  return {
+    파일,
+    dataDir,
+    uploadsDir: path.resolve(j.uploadsDir),
+    projectsDir: path.resolve(j.projectsDir),
+    botsDir: j.botsDir ? path.resolve(j.botsDir) : null,
+    chatDb: path.join(dataDir, 'chat.db'),
+    cockpitDb: path.join(dataDir, 'cockpit.db'),
+  };
+}
 
 // --project 는 **이름**일 수도 **경로**일 수도 있다 (ADR-023).
 //   경로   '/' 가 들어 있거나 이미 있는 자리 → 그대로 쓴다 (지금까지와 같다)
-//   이름만 → <파일 뿌리>/<이름>. 과제 저장소는 언제나 파일 뿌리 안이어야 봇이 첨부할 수 있다 (ADR-019).
+//   이름만 → <조종석 projectsDir>/<이름>. 조종석이 과제 폴더를 찾는 자리와 같아야 한다 (ADR-038).
 // 사람이 "과제 하나 = projects 아래 폴더 하나" 로 정했으므로, 자리를 외우는 것은 사람이 아니라 setup 이다.
-function projectDir(opt) {
+function projectDir(opt, 조종석) {
   const p = opt.project || process.env.PRODEV_PROJECT;
   if (!p) throw new Error('과제 폴더를 모른다. --project <이름 또는 폴더> 를 주거나 PRODEV_PROJECT 를 설정하라');
   if (p.includes('/') || p.includes(path.sep) || fs.existsSync(p)) return path.resolve(p);
-  const 뿌리 = process.env.MINIDISCORD_BOT_FILES_DIR;
-  if (!뿌리) {
-    throw new Error(`--project 에 이름만("${p}") 주려면 MINIDISCORD_BOT_FILES_DIR 이 있어야 한다 (과제 저장소들의 부모). 없으면 폴더 경로를 그대로 줘라`);
-  }
-  return path.join(path.resolve(뿌리), p);
+  return path.join(조종석.projectsDir, p);
 }
 const 과제이름 = dir => path.basename(dir);
 const 봇이름 = 과제 => `prodev-${과제}-bot`;
-// 훅과 cron 이 방에 알림 글을 올릴 때 쓰는 **사람 계정** (ADR-018). 봇 글은 게이트웨이만 보낼 수 있다.
-// 이름을 영어로 둔다 — 사람이 코드와 채팅에서 마주치는 이름이기 때문이다 (ADR-024).
-const 알림계정 = 'prodev-notify';
 // Claude Code 권한 패턴. 맥·리눅스는 절대 경로 앞에 '//' 를 붙인다.
 // 윈도우에서는 붙이지 않는다 — 붙이면 한 건도 안 맞아 봇이 과제 폴더에 아무것도 못 쓴다.
 // 2026-09-12 실측(윈도우 11 · Claude Code 2.1.269): 같은 경로를 세 꼴로 넣고 봇에게 쓰게 시켜 보니
@@ -167,21 +177,6 @@ const esc = s => s.replace(/\\/g, '\\\\');
 // env 와 additionalDirectories 는 셸을 안 거치므로 여기에 넣지 않는다 — 그쪽은 실제 경로여야 한다.
 const 셸경로 = s => s.replace(/\\/g, '/');
 
-function readEnv(file) {
-  const out = {};
-  try { for (const l of fs.readFileSync(file, 'utf8').split(/\r?\n/)) { const m = l.match(/^([A-Z_]+)=(.*)$/); if (m) out[m[1]] = m[2].trim(); } } catch {}
-  return out;
-}
-// .env 는 사람도 연다. 무엇인지 모를 값에는 한 줄 풀이를 붙인다 (ADR-024).
-const 토큰풀이 = `# PRODEV_NOTIFY_TOKEN: ${알림계정} 계정의 세션 쿠키. 훅과 cron 이 본방에 알림 글을 올릴 때 쓴다 (봇 글은 게이트웨이만 보낼 수 있어서 사람 계정이 필요하다)`;
-const writeEnv = (f, kv) => {
-  const 줄 = [];
-  for (const [k, v] of Object.entries(kv)) {
-    if (k === 'PRODEV_NOTIFY_TOKEN') 줄.push(토큰풀이);
-    줄.push(`${k}=${v}`);
-  }
-  fs.writeFileSync(f, 줄.join('\n') + '\n');
-};
 function ensureDir(p, note) {
   if (!fs.existsSync(p)) { fs.mkdirSync(p, { recursive: true }); log(`만듦  ${p}${note ? '  (' + note + ')' : ''}`); }
   else log(`있음  ${p}`);
@@ -256,149 +251,94 @@ function 과제폴더세우기(과제폴더) {
   ensureGit(과제폴더);
 }
 
-// ── 봇 설정 ───────────────────────────────────────────────
-
-// 틀의 {{…}} 를 이 기계의 값으로 바꾼다. 자리 둘을 가른다 (ADR-019).
-//   파일 뿌리(UPLOADS)      봇이 첨부할 수 있는 뿌리. 과제 저장소들의 부모다 (ARCHITECTURE 11절).
-//                           **여기를 deny 하면 안 된다** — 과제 폴더가 그 안에 있다.
-//   서버 업로드(SRV_UPLOADS) 서버가 받은 첨부를 쌓는 자리. 남의 원본이라 읽기만 한다.
-function 설정빚기({ 과제폴더, 봇폴더, 봇, DB, UPLOADS }) {
-  const SRV_UPLOADS = path.join(path.dirname(DB), 'uploads');
-  const tpl = fs.readFileSync(path.join(PRODEV, 'common', 'settings.template.json'), 'utf8');
-  const settings = JSON.parse(tpl
+// ── 봇 설정 두 장 (ADR-038) ───────────────────────────────
+//
+// 왜 둘인가: 조종석은 봇을 headless(Agent SDK) 세션으로 띄운다. 그 세션은 프로젝트 `.claude/settings.json` 의
+// `permissions.allow` 를 읽지 않는다 — `Write(**)` 까지 넣어도 승인을 물었다 (meta 실측, 2026-09-14).
+// 같은 규칙을 `.claude/settings.local.json` 에 두면 먹는다. 그래서 **권한만** 그쪽으로 옮기고,
+// 훅 · env · statusLine · 자동 압축은 지금까지처럼 settings.json 에 둔다 (그쪽은 headless 에서도 먹는다).
+//
+// 틀의 {{…}} 를 이 기계의 값으로 바꾼다. 두 틀이 같은 자리표시자를 쓴다.
+//   UPLOADS_DIR  조종석이 받은 첨부를 쌓는 자리. 남의 원본이라 읽기만 한다 (쓰기는 deny)
+//   DB           조종석의 chat.db — 대화 원본. chat.js · 훅이 읽기 전용으로 연다
+//   COCKPIT_DB   조종석의 cockpit.db — 계정 · 승인 기록. 봇이 **읽지도** 못하게 deny 에 넣는다 (벽은 아니다, ADR-038)
+function 설정빚기({ 과제폴더, 봇폴더, 봇, DB, COCKPIT_DB, UPLOADS_DIR }) {
+  const 채운다 = 파일 => JSON.parse(fs.readFileSync(path.join(PRODEV, 'common', 파일), 'utf8')
     .replace(/\{\{PROJECT\}\}/g, pat(과제폴더))
     .replace(/\{\{BOT\}\}/g, pat(봇폴더))
     .replace(/\{\{PRODEV\}\}/g, pat(PRODEV))
-    .replace(/\{\{UPLOADS\}\}/g, pat(UPLOADS))
     .replace(/\{\{HOOKS\}\}/g, esc(셸경로(path.join(PRODEV, 'common', 'hooks'))))
     .replace(/\{\{PROJECT_DIR\}\}/g, esc(과제폴더))
-    .replace(/\{\{UPLOADS_DIR\}\}/g, esc(UPLOADS))
+    .replace(/\{\{UPLOADS_DIR\}\}/g, esc(UPLOADS_DIR))
     .replace(/\{\{PRODEV_DIR\}\}/g, esc(PRODEV))
     .replace(/\{\{BOT_NAME\}\}/g, 봇)
     .replace(/\{\{DB\}\}/g, esc(DB))
     .replace(/\{\{GIT_BASH\}\}/g, esc(GIT_BASH))
-    // 훅이 방에 알릴 때 쓴다. 없으면 기본 3000 을 보고, 시험 서버가 딴 포트면 조용히 건너뛴다
-    // (T3.M 재생에서 훅 로그가 "서버나 알림 계정이 없다" 였다).
-    .replace(/\{\{URL\}\}/g, esc(URL_))
     .replace(/\{\{STATUSLINE\}\}/g, esc(셸경로(path.join(PRODEV, 'common', 'statusline.sh'))))
     .replace(/\{\{PATH\}\}/g, esc(BOT_PATH))
     .replace('"{{AUTOCOMPACT}}"', String(AUTOCOMPACT)));
 
-  // 서버 업로드 폴더는 읽기만 한다 — 단, 그 폴더가 과제 폴더를 덮으면 넣지 않는다.
+  const settings = 채운다('settings.template.json');
+  const local = 채운다('settings.local.template.json');
+  const deny = local.permissions.deny;
+
+  // 조종석 업로드 폴더는 읽기만 한다 — 단, 그 폴더가 과제 폴더를 덮으면 넣지 않는다.
   // 덮으면 봇이 헌장·카드·일지를 못 쓴다 (R1 재생에서 실제로 그랬다. ADR-019).
   // 0층 불변은 이 목록이 아니라 intake-copy.js 의 0444 잠금과 git 이 지킨다.
-  if (!덮는다(SRV_UPLOADS, 과제폴더)) {
-    settings.permissions.deny.push(`Write(${pat(SRV_UPLOADS)}/**)`, `Edit(${pat(SRV_UPLOADS)}/**)`);
+  if (!덮는다(UPLOADS_DIR, 과제폴더)) {
+    deny.push(`Write(${pat(UPLOADS_DIR)}/**)`, `Edit(${pat(UPLOADS_DIR)}/**)`);
   } else {
-    log(`!! 서버 업로드 폴더가 과제 폴더를 덮는다 (${SRV_UPLOADS}) — 읽기 전용 deny 를 넣지 않는다`);
+    log(`!! 조종석 업로드 폴더가 과제 폴더를 덮는다 (${UPLOADS_DIR}) — 읽기 전용 deny 를 넣지 않는다`);
   }
 
+  // cockpit.db 는 봇이 볼 일이 없다 (ADR-038 · cockpit ARCHITECTURE 3.3).
+  deny.push(`Read(${pat(COCKPIT_DB)})`, `Edit(${pat(COCKPIT_DB)})`, `Write(${pat(COCKPIT_DB)})`);
+
   // 어떤 deny 도 과제 폴더를 덮어서는 안 된다. 덮으면 봇이 아무것도 못 남긴다.
-  const 덮는것 = settings.permissions.deny.filter(d => {
+  const 덮는것 = deny.filter(d => {
     const m = /^(?:Write|Edit)\((.*?)\/\*\*\)$/.exec(d);
     return m && 덮는다(m[1].replace(/^\/\//, '/'), 과제폴더);
   });
   if (덮는것.length) throw new Error(`deny 가 과제 폴더를 덮는다: ${덮는것.join(' · ')}`);
 
-  return settings;
-}
-
-// ── minidiscord API ───────────────────────────────────────
-let cookie = '';
-async function api(method, p, body) {
-  // 몸이 없으면 content-type 을 붙이지 않는다. 붙이면 fastify 가 "빈 JSON 몸" 이라고 400 을 낸다
-  // (POST /api/rooms/:id/archive 처럼 몸이 없는 자리가 있다).
-  const headers = body ? { 'content-type': 'application/json', cookie } : { cookie };
-  const r = await fetch(URL_ + p, { method, headers, body: body ? JSON.stringify(body) : undefined });
-  const sc = r.headers.get('set-cookie'); if (sc) cookie = sc.split(';')[0];
-  const text = await r.text();
-  let json = null; try { json = JSON.parse(text); } catch {}
-  if (!r.ok) throw new Error(`${method} ${p} → ${r.status} ${text.slice(0, 160)}`);
-  return json;
-}
-async function serverUp() { try { const j = await api('GET', '/api/health'); return !!(j && j.ok); } catch { return false; } }
-const login = () => api('POST', '/api/auth/login', { username: process.env.MINIDISCORD_USER || 'prodev-setup' });
-
-// 알림 계정의 세션 쿠키를 받아 온다 (ADR-024). 이름 하나로 로그인하면 계정이 없을 때 생긴다.
-// 공용 api() 를 쓰지 않는 까닭: 그것은 모듈 쿠키를 덮어, 뒤따르는 부름이 알림 계정으로 나간다.
-async function 알림토큰받기() {
-  const r = await fetch(URL_ + '/api/auth/login', {
-    method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ username: 알림계정 }),
-  });
-  if (!r.ok) throw new Error(`${r.status} ${(await r.text()).slice(0, 120)}`);
-  const m = /md_session=([^;]+)/.exec(r.headers.get('set-cookie') || '');
-  return m ? m[1] : null;
+  return { settings, local };
 }
 
 // ── 설치 ──────────────────────────────────────────────────
 
 async function install(opt) {
-  const 과제폴더 = projectDir(opt);
+  const 조종석 = 조종석설정(opt);
+  const 과제폴더 = projectDir(opt, 조종석);
   const 과제 = 과제이름(과제폴더);
   const 봇 = 봇이름(과제);
   const 봇폴더 = path.join(PRODEV, 'bots', 봇);
-  const DB = process.env.MINIDISCORD_DB || path.join(MINIDISCORD, 'server', 'data', 'minidiscord.db');
-  // 봇이 첨부할 수 있는 뿌리. 과제 저장소들의 부모다 (ADR-019 · ARCHITECTURE 11절).
-  const UPLOADS = process.env.MINIDISCORD_BOT_FILES_DIR || path.join(MINIDISCORD, 'server', 'data', 'uploads');
 
-  console.log(`저장소: ${PRODEV}\n과제:   ${과제} (${과제폴더})\n봇:     ${봇}\nminidiscord: ${MINIDISCORD} (${URL_})\n`);
+  console.log(`저장소: ${PRODEV}\n과제:   ${과제} (${과제폴더})\n봇:     ${봇}\n조종석: ${조종석.파일}\n`);
 
   console.log('① 폴더');
   과제폴더세우기(과제폴더);
-  ensureDir(봇폴더, '토큰 · 설정 · 자기 상태');
-  if (!fs.existsSync(CHANNEL)) log(`없음  ${CHANNEL}  ← minidiscord 에서 npm install && npm run build -w channel`);
-
-  console.log('\n② 봇 등록 (서버가 떠 있을 때만)');
-  const up = await serverUp();
-  const kv = readEnv(path.join(봇폴더, '.env'));
-  if (!up) log(`서버 없음 (${URL_}) — 건너뜀. 서버를 띄우고 다시 돌리면 등록한다.`);
-  else if (kv.MINIDISCORD_TOKEN) log(`있음  ${봇} (토큰 있음)`);
-  else {
-    await login();
-    const 있는것 = new Map((await api('GET', '/api/bots')).map(b => [b.name, b]));
-    if (있는것.has(봇)) log(`주의  ${봇} 은 서버에 있는데 .env 에 토큰이 없다 — 웹에서 봇을 지우고 다시 돌려라`);
-    else {
-      const j = await api('POST', '/api/bots', { name: 봇, description: `prodev ${과제} bot`, role: 'orchestrator' });
-      writeEnv(path.join(봇폴더, '.env'), { ...kv, MINIDISCORD_TOKEN: j.token });
-      log(`등록  ${봇} (id ${j.id}) → bots/${봇}/.env`);
-    }
+  ensureDir(봇폴더, '설정 · 자기 상태');
+  if (조종석.botsDir && path.resolve(조종석.botsDir) !== path.resolve(path.dirname(봇폴더))) {
+    log(`!! 조종석 botsDir(${조종석.botsDir}) 이 이 저장소의 bots/ 가 아니다 — open-project 에 --bot-dir ${JSON.stringify(봇폴더)} 를 준다`);
   }
 
-  // 알림 계정의 세션 쿠키 (ADR-024). 사람이 브라우저에서 쿠키를 복사하던 걸음을 여기서 없앤다.
-  // 이미 값이 있으면 덮지 않는다 — 사람이 손으로 넣어 둔 것을 지우면 안 된다.
-  const env길 = path.join(봇폴더, '.env');
-  if (!up) log(`알림 토큰  건너뜀 (서버 없음) — 서버를 켜고 다시 돌리면 받는다`);
-  else if (readEnv(env길).PRODEV_NOTIFY_TOKEN) log(`있음  ${알림계정} 세션 쿠키 (덮지 않는다)`);
-  else {
-    try {
-      const t = await 알림토큰받기();
-      if (t) { writeEnv(env길, { ...readEnv(env길), PRODEV_NOTIFY_TOKEN: t }); log(`받음  ${알림계정} 세션 쿠키 → bots/${봇}/.env`); }
-      else log(`!! ${알림계정} 로그인 응답에 md_session 이 없다 — 손으로 .env 에 넣어라`);
-    } catch (e) {
-      log(`!! ${알림계정} 토큰을 못 받았다 (${e.message}) — 손으로 .env 에 넣어라`);
-    }
-  }
-
-  console.log('\n③ 설정 파일 (훅 셋 배선 · env 넷)');
-  const settings = 설정빚기({ 과제폴더, 봇폴더, 봇, DB, UPLOADS });
-
+  console.log('\n② 설정 파일 두 장 (ADR-038)');
+  const { settings, local } = 설정빚기({
+    과제폴더, 봇폴더, 봇, DB: 조종석.chatDb, COCKPIT_DB: 조종석.cockpitDb, UPLOADS_DIR: 조종석.uploadsDir,
+  });
   fs.mkdirSync(path.join(봇폴더, '.claude'), { recursive: true });
   fs.writeFileSync(path.join(봇폴더, '.claude', 'settings.json'), JSON.stringify(settings, null, 2) + '\n');
-  if (!fs.existsSync(path.join(봇폴더, '.env'))) writeEnv(path.join(봇폴더, '.env'), { MINIDISCORD_TOKEN: '' });
-  const token = readEnv(path.join(봇폴더, '.env')).MINIDISCORD_TOKEN;
-  if (token) {
-    fs.writeFileSync(path.join(봇폴더, '.mcp.json'), JSON.stringify({
-      mcpServers: { 'minidiscord-channel': { command: 'node', args: [CHANNEL], env: { MINIDISCORD_TOKEN: token, MINIDISCORD_SERVER: WS } } },
-    }, null, 2) + '\n');
+  fs.writeFileSync(path.join(봇폴더, '.claude', 'settings.local.json'), JSON.stringify(local, null, 2) + '\n');
+  log(`씀  bots/${봇}/.claude/settings.json  (훅 · env · statusLine · 자동 압축)`);
+  log(`씀  bots/${봇}/.claude/settings.local.json  (허용 ${local.permissions.allow.length}건 · 거부 ${local.permissions.deny.length}건 · 바깥 폴더 ${local.permissions.additionalDirectories.length}개)`);
+  for (const 옛것 of ['.mcp.json', '.env']) {
+    if (fs.existsSync(path.join(봇폴더, 옛것))) log(`남음  bots/${봇}/${옛것}  (minidiscord 시절 파일. 조종석은 안 읽는다 — 지워도 된다)`);
   }
-  log(`씀  bots/${봇}/.claude/settings.json${token ? ' · .mcp.json' : '  (.mcp.json 은 토큰이 없어 건너뜀)'}`);
   log(`훅  ${Object.keys(settings.hooks).join(' · ')}`);
-  log(`env  ${Object.keys(settings.env).filter(k => k.startsWith('PRODEV') || k === 'MINIDISCORD_DB').join(' · ')}`);
+  log(`env  ${Object.keys(settings.env).filter(k => k.startsWith('PRODEV') || k === 'MINIDISCORD_DB').join(' · ')}  (MINIDISCORD_DB = ${settings.env.MINIDISCORD_DB})`);
   log(`Git Bash  ${settings.env.CLAUDE_CODE_GIT_BASH_PATH}${process.platform === 'win32' ? '' : '  (맥·리눅스에서는 안 쓰인다 — 윈도우로 옮길 때를 위해 박아 둔다)'}`);
-  log(`허용 ${settings.permissions.allow.length}건 · 거부 ${settings.permissions.deny.length}건 · 바깥 폴더 ${settings.permissions.additionalDirectories.length}개`);
 
-  console.log('\n④ 환경 점검 (봇 설정에 박은 PATH 로)');
+  console.log('\n③ 환경 점검 (봇 설정에 박은 PATH 로)');
   const 찾음 = probe(BOT_PATH);
   const 없음 = 찾음.filter(x => !x.dir);
   log(`PATH  ${BOT_PATH.split(path.delimiter).length}개 폴더 · 변수 참조 없음`);
@@ -409,83 +349,19 @@ async function install(opt) {
   }
   log(`압축 문턱  ${AUTOCOMPACT.toLocaleString()} 토큰 (PRODEV_AUTOCOMPACT=<값>)`);
 
-  console.log('\n⑤ 다음');
-  if (!up) log(`서버를 켜고 다시 돌려라: cd ${JSON.stringify(MINIDISCORD)} && MINIDISCORD_BOT_FILES_DIR=${JSON.stringify(UPLOADS)} npm run dev -w server`);
-  else if (!token) log('위 ② 의 주의를 처리한 뒤 다시 돌려라');
-  else {
-    log(`node scripts/setup.js rooms ${과제}   → 방 둘 만들고 봇 참여`);
-    log(`cd ${JSON.stringify(봇폴더)} && claude ${CLAUDE_ARGS.join(' ')}`);
-  }
-  return { 봇, 봇폴더, 과제폴더, settings };
+  console.log('\n④ 다음 — 조종석에서 과제를 연다 (docs/launch.md 4절)');
+  log(`cd <cockpit> && node bin/cockpit.js open-project ${과제} --bot-dir ${JSON.stringify(봇폴더)} --config ${JSON.stringify(조종석.파일)}`);
+  log(`node bin/cockpit.js serve --config ${JSON.stringify(조종석.파일)}   (또는 웹의 과제 열기)`);
+  return { 봇, 봇폴더, 과제폴더, settings, local };
 }
 
-// ── 방 둘 (본방 · files) ──────────────────────────────────
-
-async function rooms(과제) {
-  if (!과제) throw new Error('과제 이름을 주세요: node scripts/setup.js rooms <과제>');
-  if (!(await serverUp())) throw new Error(`서버 없음 (${URL_})`);
-  await login();
-
-  const 봇 = 봇이름(과제);
-  const bots = new Map((await api('GET', '/api/bots')).map(b => [b.name, b]));
-  const b = bots.get(봇);
-  if (!b) throw new Error(`봇이 없다: ${봇} — 먼저 node scripts/setup.js 를 돌려 등록하라`);
-
-  const 이름들 = [`prodev-${과제}`, ...갈래.map(g => `prodev-${과제}/${g}`)];
-  const 있는방 = new Map(((await api('GET', '/api/rooms')).active || []).map(r => [r.name, r]));
-
-  const 만든것 = [];
-  for (const name of 이름들) {
-    let room = 있는방.get(name);
-    if (room) log(`방 있음  ${name} (id ${room.id})`);
-    else { room = await api('POST', '/api/rooms', { name }); log(`방 만듦  ${name} (id ${room.id})`); }
-    // 참여는 여러 번 넣어도 되게 — 이미 있으면 서버가 거절해도 넘어간다
-    try { await api('POST', `/api/rooms/${room.id}/bots`, { bot_id: b.id }); log(`  참여  ${봇}`); }
-    catch (e) { log(`  참여  ${봇} (이미 있음)`); }
-    만든것.push({ id: room.id, name });
-  }
-
-  // 봇이 "내가 어느 방을 맡나"를 아는 자리. 훅도 DB 가 죽었을 때 이것으로 방 이름을 안다 (ADR-021).
-  const 봇폴더 = path.join(PRODEV, 'bots', 봇);
-  fs.mkdirSync(봇폴더, { recursive: true });
-  fs.writeFileSync(path.join(봇폴더, 'rooms.json'),
-    JSON.stringify({ 과제, rooms: 만든것.map(r => ({ ...r, last_seen_id: 0 })) }, null, 2) + '\n');
-  log(`씀  bots/${봇}/rooms.json  (방 ${만든것.length}개 · 처리한 마지막 id 는 봇이 갱신한다)`);
-  return 만든것;
-}
-
-// ── cron 두 줄 ────────────────────────────────────────────
-
-function cron(과제) {
-  const 이름 = 과제 || '<과제>';
-  const 봇 = 봇이름(이름);
-  const 본방 = `prodev-${이름}`;
-  console.log('crontab -e 에 아래 두 줄을 붙인다 (PL PC). 방 번호는 setup.js rooms 출력에서 본다.');
-  console.log(`# prodev ${이름} — 08:00 브리핑 · 18:30 일지`);
-  console.log(`0 8 * * 1-5 curl -sS -X POST ${URL_}/api/rooms/<본방번호>/messages -b "md_session=$PRODEV_NOTIFY_TOKEN" --form-string 'body=@TO(${봇}) 오늘 브리핑' >/dev/null`);
-  console.log(`30 18 * * 1-5 curl -sS -X POST ${URL_}/api/rooms/<본방번호>/messages -b "md_session=$PRODEV_NOTIFY_TOKEN" --form-string 'body=@TO(${봇}) 오늘 일지' >/dev/null`);
-  console.log(`\n본방: ${본방} · 알림 계정의 세션 쿠키 값을 PRODEV_NOTIFY_TOKEN 에 둔다 (봇 글은 게이트웨이만 보낼 수 있다).`);
-  console.log('서버는 쿠키 md_session 하나로만 인증하고 글 올리기는 multipart 만 받는다 (ADR-018).');
-  console.log("-F 가 아니라 --form-string 이다 — -F 는 '@' 로 시작하는 값을 파일 경로로 읽고, 멘션은 언제나 @TO( 로 시작한다.");
-}
-
-// ── 보관 ──────────────────────────────────────────────────
-
-async function archive(방이름) {
-  if (!방이름) throw new Error('방 이름을 주세요: node scripts/setup.js archive <방>');
-  if (!(await serverUp())) throw new Error(`서버 없음 (${URL_})`);
-  await login();
-  const 목록 = await api('GET', '/api/rooms');
-  const room = (목록.active || []).find(r => r.name === 방이름);
-  if (!room) {
-    const 이미 = (목록.archived || []).find(r => r.name === 방이름);
-    if (이미) { log(`이미 보관됨  ${방이름} (id ${이미.id})`); return 이미; }
-    throw new Error(`활성 방에 없다: ${방이름}`);
-  }
-  await api('POST', `/api/rooms/${room.id}/archive`);
-  log(`보관  ${방이름} (id ${room.id}) — 접속은 유지되고 welcome 에서 빠진다`);
-  return room;
-}
+// ── 옮겨 간 명령 ──────────────────────────────────────────
+// 방은 조종석이 만든다 (open-project · POST /api/projects). 옛 걸음을 밟은 사람이 조용히 지나치지 않게
+// 무엇이 대신하는지 말하고 1 로 끝낸다 — 방이 안 생겼는데 0 으로 끝나면 생긴 줄 안다.
+const 옮겨감 = {
+  rooms: '방 둘은 조종석이 과제를 열 때 만든다: cd <cockpit> && node bin/cockpit.js open-project <과제> (또는 웹의 과제 열기)',
+  archive: '방 보관은 조종석으로 옮겨 갔다. setup.js 는 방을 만지지 않는다',
+};
 
 // ── 몸통 ──────────────────────────────────────────────────
 
@@ -500,16 +376,14 @@ function parseArgs(argv) {
 
 if (require.main === module) {
   const { pos, opt } = parseArgs(process.argv.slice(2));
-  const [cmd, arg] = pos;
+  const [cmd] = pos;
   (async () => {
     try {
       if (!cmd) await install(opt);
-      else if (cmd === 'rooms') await rooms(arg);
-      else if (cmd === 'cron') cron(arg);
-      else if (cmd === 'archive') await archive(arg);
-      else throw new Error(`모르는 명령: ${cmd}  (없음 | rooms | cron | archive)`);
+      else if (옮겨감[cmd]) { console.error(`${cmd}: ${옮겨감[cmd]}`); process.exit(1); }
+      else throw new Error(`모르는 명령: ${cmd}  (명령 없이 돌리면 설치다)`);
     } catch (e) { console.error('오류: ' + e.message); process.exit(1); }
   })();
 }
 
-module.exports = { install, rooms, cron, archive, 봇이름, 알림계정, 갈래, 과제폴더세우기, 설정빚기, 과제폴더들, GIT_BASH };
+module.exports = { install, 조종석설정, 봇이름, 과제폴더세우기, 설정빚기, 과제폴더들, GIT_BASH };

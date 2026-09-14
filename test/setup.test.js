@@ -1,7 +1,7 @@
-// setup.js — 과제 폴더의 자리(ADR-032)와 봇 설정의 허용 목록·Git Bash 길(ADR-033).
+// setup.js — 과제 폴더의 자리(ADR-032) · 봇 설정의 허용 목록·Git Bash 길(ADR-033) · 설정 두 장과 조종석 자리(ADR-038).
 //
 // install() 통째가 아니라 그것이 부르는 둘을 직접 본다: 과제폴더세우기 · 설정빚기.
-// 까닭은 install() 이 서버에 붙고 bots/ 아래에 진짜 봇 폴더를 만들기 때문이다 —
+// 까닭은 install() 이 bots/ 아래에 진짜 봇 폴더를 만들기 때문이다 —
 // 시험이 그 자리를 만지면 안 된다 (as-built 1절: "이 저장소의 어떤 시험도 여기를 만지지 않는다").
 const { test } = require('node:test');
 const assert = require('node:assert');
@@ -80,26 +80,72 @@ test('setup — 이미 있는 house.md 와 .gitignore 는 덮지 않는다 (다�
   assert.ok(fs.readFileSync(path.join(proj, '.gitignore'), 'utf8').includes('*.xlsx'), '.gitignore 를 덮었다');
 });
 
-// ── 봇 설정 (ADR-033) ─────────────────────────────────────
+// ── 봇 설정 두 장 (ADR-033 · ADR-038) ──────────────────────
+//
+// 조종석은 봇을 headless(Agent SDK) 세션으로 띄운다. 그 세션은 settings.json 의 permissions.allow 를 읽지 않고
+// settings.local.json 의 것은 읽는다 (ADR-038). 그래서 허용 · 거부 · 바깥 폴더는 **local** 에서 본다.
 
-function 설정(proj) {
+function 빚는다(proj) {
   const 봇폴더 = tmp('setup-bot');
-  const DB = path.join(tmp('setup-md'), 'minidiscord.db');
-  return 조용히(() => S.설정빚기({ 과제폴더: proj, 봇폴더, 봇: 'prodev-시험-bot', DB, UPLOADS: tmp('setup-up') }));
+  const data = tmp('setup-cockpit');
+  const 자리 = {
+    DB: path.join(data, 'chat.db'), COCKPIT_DB: path.join(data, 'cockpit.db'), UPLOADS_DIR: tmp('setup-up'),
+  };
+  const 빚음 = 조용히(() => S.설정빚기({ 과제폴더: proj, 봇폴더, 봇: 'prodev-시험-bot', ...자리 }));
+  return { ...빚음, 자리 };
 }
+// Claude Code 권한 패턴 — setup.js 의 pat 과 같은 꼴 (맥·리눅스는 앞에 //, 윈도우는 그대로)
+const 패턴 = p => {
+  const s = p.replace(/\\/g, '/');
+  return process.platform === 'win32' ? s : '//' + s.replace(/^\//, '');
+};
 
 test('setup — 봇 설정 env 에 CLAUDE_CODE_GIT_BASH_PATH 가 있고 값이 비지 않는다 (맥에서도)', () => {
-  const s = 설정(tmp('setup-env'));
+  const { settings: s, local } = 빚는다(tmp('setup-env'));
 
   assert.ok('CLAUDE_CODE_GIT_BASH_PATH' in s.env, '키가 없다 — 봇은 user 범위 설정을 못 읽는다');
   assert.ok(s.env.CLAUDE_CODE_GIT_BASH_PATH.length > 0, '값이 비었다. 비면 안 둔 것과 같다');
   assert.ok(/bash/i.test(s.env.CLAUDE_CODE_GIT_BASH_PATH), `bash 를 가리키지 않는다: ${s.env.CLAUDE_CODE_GIT_BASH_PATH}`);
-  // 틀의 {{…}} 가 안 바뀐 채 남으면 안 된다
-  assert.ok(!/\{\{/.test(JSON.stringify(s)), '치환되지 않은 {{자리}} 가 남았다');
+  // 틀의 {{…}} 가 안 바뀐 채 남으면 안 된다 — 두 장 다
+  assert.ok(!/\{\{/.test(JSON.stringify(s)), 'settings.json 에 치환되지 않은 {{자리}} 가 남았다');
+  assert.ok(!/\{\{/.test(JSON.stringify(local)), 'settings.local.json 에 치환되지 않은 {{자리}} 가 남았다');
   // 전에 있던 것들은 그대로다
   for (const k of ['CLAUDE_CODE_DISABLE_AUTO_MEMORY', 'PATH', 'PRODEV_BOT', 'PRODEV_PROJECT', 'MINIDISCORD_DB', 'MINIDISCORD_URL']) {
     assert.ok(k in s.env, `env 가 빠졌다: ${k}`);
   }
+  // 알림 서버는 없다 — 훅은 빈 값이면 조용히 건너뛴다 (ADR-038)
+  assert.strictEqual(s.env.MINIDISCORD_URL, '', 'MINIDISCORD_URL 이 빈 값이 아니다');
+});
+
+test('setup — 권한은 settings.local.json 에만, 훅 · env 는 settings.json 에만 있다 (ADR-038)', () => {
+  const { settings, local } = 빚는다(tmp('setup-two'));
+
+  assert.ok(!('permissions' in settings), 'settings.json 에 permissions 가 남았다 — headless 세션은 그 allow 를 안 읽는다');
+  assert.deepStrictEqual(Object.keys(local), ['permissions'], `settings.local.json 에 권한 말고 다른 것이 있다: ${Object.keys(local)}`);
+  assert.deepStrictEqual(Object.keys(local.permissions).sort(), ['additionalDirectories', 'allow', 'deny']);
+  for (const k of ['env', 'hooks', 'statusLine', 'autoCompactEnabled', 'autoCompactWindow']) {
+    assert.ok(k in settings, `settings.json 에 ${k} 가 없다`);
+    assert.ok(!(k in local), `settings.local.json 에 ${k} 가 들어갔다`);
+  }
+});
+
+test('setup — 틀 두 장의 꼴: local 틀은 { permissions } 하나뿐이고 settings 틀에는 permissions 가 없다 (조종석이 기대는 꼴)', () => {
+  const 틀 = f => JSON.parse(fs.readFileSync(path.join(ROOT, 'common', f), 'utf8').replace('"{{AUTOCOMPACT}}"', '1'));
+  const settings = 틀('settings.template.json');
+  const local = 틀('settings.local.template.json');
+  assert.deepStrictEqual(Object.keys(local), ['permissions']);
+  assert.ok(!('permissions' in settings));
+  // 자리표시자 이름은 그대로다 — 조종석 스모크가 같은 이름으로 채운다
+  const 자리표시자 = [...new Set(JSON.stringify(local).match(/\{\{[A-Z_]+\}\}/g))].sort();
+  assert.deepStrictEqual(자리표시자, ['{{BOT}}', '{{PRODEV_DIR}}', '{{PRODEV}}', '{{PROJECT_DIR}}', '{{PROJECT}}', '{{UPLOADS_DIR}}'].sort());
+});
+
+test('setup — 도구 이름은 mcp__cockpit__ 이다. minidiscord 채널 이름이 두 장 어디에도 없다 (ADR-038)', () => {
+  const { settings, local } = 빚는다(tmp('setup-names'));
+  assert.ok(local.permissions.allow.includes('mcp__cockpit__reply'));
+  assert.ok(local.permissions.allow.includes('mcp__cockpit__fetch_history'));
+  assert.strictEqual(settings.hooks.PreToolUse[0].matcher, 'mcp__cockpit__reply', 'pre-reply 훅이 cockpit 의 reply 에 안 걸린다');
+  assert.ok(!/minidiscord-channel/.test(JSON.stringify(settings) + JSON.stringify(local)), '옛 채널 도구 이름이 남았다');
 });
 
 // 내장 도구가 덮으므로 뺀 것들. 여기 한 줄이 되살아나면 셸로 새어 나갈 자리가 다시 열린다.
@@ -107,7 +153,7 @@ const 뺀것 = ['grep', 'find', 'sed', 'awk', 'sort', 'uniq', 'wc', 'head', 'tai
   'stat', 'file', 'shasum', 'sha256sum', 'cp', 'chmod', 'basename', 'dirname'];
 
 test('setup — 허용 목록에 셸 도구 스물하나가 없다 (내장 도구가 덮는다)', () => {
-  const allow = 설정(tmp('setup-allow')).permissions.allow;
+  const allow = 빚는다(tmp('setup-allow')).local.permissions.allow;
 
   for (const 이름 of 뺀것) {
     assert.ok(!allow.includes(`Bash(${이름}:*)`) && !allow.includes(`Bash(${이름})`),
@@ -117,7 +163,7 @@ test('setup — 허용 목록에 셸 도구 스물하나가 없다 (내장 도�
 });
 
 test('setup — 그 대신 Grep · Glob · Read 가 이름으로 허용된다 (안 열면 찾기가 승인 창으로 샌다)', () => {
-  const allow = 설정(tmp('setup-builtin')).permissions.allow;
+  const allow = 빚는다(tmp('setup-builtin')).local.permissions.allow;
 
   for (const 도구 of ['Read', 'Grep', 'Glob']) {
     assert.ok(allow.includes(도구), `내장 도구가 안 열렸다: ${도구}`);
@@ -125,7 +171,7 @@ test('setup — 그 대신 Grep · Glob · Read 가 이름으로 허용된다 (�
 });
 
 test('setup — 스킬과 에이전트가 부르는 명령은 전부 남아 있다 (봇이 할 수 있는 일이 줄지 않았다)', () => {
-  const allow = 설정(tmp('setup-keep')).permissions.allow;
+  const allow = 빚는다(tmp('setup-keep')).local.permissions.allow;
 
   // 스킬 열셋과 에이전트 여섯의 본문이 부르는 바깥 명령은 이 셋뿐이다 (ADR-033 맥락)
   for (const 이름 of ['node', 'python3', 'git']) {
@@ -143,22 +189,66 @@ test('setup — 스킬과 에이전트가 부르는 명령은 전부 남아 있�
 });
 
 test('setup — 지우는 명령(rm · mv)은 열지 않는다', () => {
-  const allow = 설정(tmp('setup-rm')).permissions.allow;
+  const allow = 빚는다(tmp('setup-rm')).local.permissions.allow;
   for (const 이름 of ['rm', 'mv', 'pip', 'curl']) {
     assert.ok(!allow.some(a => a.startsWith(`Bash(${이름}`)), `열려 있다: ${이름}`);
   }
 });
 
-test('setup — deny 는 그대로고, 서버 업로드 폴더 둘이 더해진다 (ADR-019)', () => {
+test('setup — deny 는 틀 5 + 조종석 업로드 2 + cockpit.db 셋이고, 과제 폴더를 덮지 않는다 (ADR-019 · ADR-038)', () => {
   const proj = tmp('setup-deny');
-  const s = 설정(proj);
+  const { local, 자리 } = 빚는다(proj);
+  const deny = local.permissions.deny;
 
-  assert.strictEqual(s.permissions.deny.length, 7, '틀 5 + 업로드 2 가 아니다');
-  assert.ok(s.permissions.deny.some(d => d.includes('.env')));
+  assert.strictEqual(deny.length, 10, `틀 5 + 업로드 2 + cockpit.db 3 이 아니다: ${deny.length}건`);
+  assert.ok(deny.some(d => d.includes('.env')));
+  // 봇이 제 권한 파일을 못 고친다 — 두 장 다
+  assert.ok(deny.some(d => d.endsWith('/.claude/settings.json)')), 'settings.json 을 고칠 수 있다');
+  assert.ok(deny.some(d => d.endsWith('/.claude/settings.local.json)')), 'settings.local.json 을 고칠 수 있다 — 허용 목록을 스스로 늘린다');
+  // cockpit.db — 읽기 · 고치기 · 쓰기 셋 다 (조종석 ARCHITECTURE 3.3)
+  for (const 동사 of ['Read', 'Edit', 'Write']) {
+    assert.ok(deny.includes(`${동사}(${패턴(자리.COCKPIT_DB)})`), `deny 에 ${동사}(cockpit.db) 가 없다`);
+  }
+  // chat.db 는 막지 않는다 — chat.js 가 읽는 대화 원본이다
+  assert.ok(!deny.some(d => d.includes('chat.db')), 'chat.db 를 막았다 — find.js 의 대화 층이 죽는다');
+  // 조종석 업로드 폴더는 쓰기만 막는다
+  assert.ok(deny.includes(`Write(${패턴(자리.UPLOADS_DIR)}/**)`) && deny.includes(`Edit(${패턴(자리.UPLOADS_DIR)}/**)`));
   // 어떤 deny 도 과제 폴더를 덮지 않는다 — 덮으면 봇이 아무것도 못 남긴다
-  for (const d of s.permissions.deny) {
+  for (const d of deny) {
     const m = /^(?:Write|Edit)\((.*?)\/\*\*\)$/.exec(d);
     if (m) assert.ok(!path.resolve(proj).startsWith(path.resolve(m[1].replace(/^\/\//, '/'))),
       `deny 가 과제 폴더를 덮는다: ${d}`);
   }
+});
+
+test('setup — MINIDISCORD_DB 는 조종석 chat.db, 바깥 폴더에 조종석 업로드 폴더가 있다 (ADR-038)', () => {
+  const proj = tmp('setup-places');
+  const { settings, local, 자리 } = 빚는다(proj);
+  assert.strictEqual(settings.env.MINIDISCORD_DB, 자리.DB);
+  assert.ok(!JSON.stringify(settings).includes('cockpit.db'), 'cockpit.db 경로가 봇 env 에 새었다');
+  assert.deepStrictEqual(local.permissions.additionalDirectories, [proj, 자리.UPLOADS_DIR, ROOT]);
+});
+
+// ── 조종석 설정 한 장에서 자리를 읽는다 (ADR-038) ─────────
+
+test('setup — cockpit.json 에서 chat.db · cockpit.db · 업로드 · 과제 뿌리를 읽는다', () => {
+  const d = tmp('setup-cfg');
+  const 파일 = path.join(d, 'cockpit.json');
+  fs.writeFileSync(파일, JSON.stringify({
+    botsDir: path.join(d, 'bots'), projectsDir: path.join(d, 'projects'),
+    uploadsDir: path.join(d, 'uploads'), dataDir: path.join(d, 'data'), port: 3000,
+  }));
+  const c = S.조종석설정({ cockpit: 파일 });
+  assert.strictEqual(c.chatDb, path.join(d, 'data', 'chat.db'));
+  assert.strictEqual(c.cockpitDb, path.join(d, 'data', 'cockpit.db'));
+  assert.strictEqual(c.uploadsDir, path.join(d, 'uploads'));
+  assert.strictEqual(c.projectsDir, path.join(d, 'projects'));
+});
+
+test('setup — cockpit.json 이 없거나 자리가 빠지면 까닭을 대고 죽는다', () => {
+  const d = tmp('setup-cfg-bad');
+  assert.throws(() => S.조종석설정({ cockpit: path.join(d, '없다.json') }), /조종석 설정이 없다.*--cockpit/);
+  const 파일 = path.join(d, 'cockpit.json');
+  fs.writeFileSync(파일, JSON.stringify({ dataDir: d }));
+  assert.throws(() => S.조종석설정({ cockpit: 파일 }), /uploadsDir · projectsDir/);
 });
