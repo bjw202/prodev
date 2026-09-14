@@ -99,11 +99,47 @@ claude \
 | **cwd = 봇 폴더** | `.claude/settings.json` 과 `.mcp.json` 이 여기 있다. 훅·허용 목록·env 셋이 전부 이 설정에서 온다 |
 | `--setting-sources project,local` | user 범위(`~/.claude.json`)를 읽지 않는다. 사람 PC 의 설정이 봇에 새지 않는다. **그래서 PATH 를 settings 의 `env` 에 박는다** (`setup.js` 가 한다) |
 | `--strict-mcp-config` + `--mcp-config .mcp.json` | 이 파일에 적힌 MCP 서버 하나만 붙인다 |
-| `--dangerously-load-development-channels server:minidiscord-channel` | 채널 플러그인을 개발 빌드로 붙인다 |
+| `--dangerously-load-development-channels server:minidiscord-channel` | 허용 목록 밖의 채널 서버를 **싣는다.** 이것만으로는 들어오는 글이 세션에 **안 꽂힌다** — 아래 4.1 |
+| `--channels minidiscord-channel` | **들어오는 push 를 이 세션에 등록한다.** 회사 계정에서 봇을 깨우려면 이것이 있어야 한다 (4.1) |
 | `--settings` 는 **쓰지 않는다** | cwd 의 `.claude/settings.json` 이 이미 project 범위로 읽힌다. `--settings` 로 또 주면 어느 쪽이 이겼는지 나중에 못 가린다 |
 
 스킬·에이전트는 **prodev 저장소 뿌리**(`bots/<봇>/` 의 두 단계 위)의 `.claude/skills` · `.claude/agents` 에 있다.
 `CLAUDE.md` 도 거기 있다. 기동 뒤 세션에서 스킬 열셋이 보이는지 확인한다.
+
+### 4.1 회사 계정이면 봇이 방 글에 안 깨어난다 — 먼저 뚫어야 할 벽
+
+**claude.ai Teams · Enterprise 계정은 «방 글을 세션으로 밀어 넣는 기능»이 기본으로 꺼져 있다.**
+꺼져 있으면 Claude Code 는 들어오는 글을 **말 없이 버린다.** 실행본 안의 문구가 그대로 이렇다:
+
+    "Inbound messages will be silently dropped"
+    "Have an administrator set channelsEnabled: true in managed settings to enable"
+
+**밖에서 보이는 모습이 사람을 속인다.** 이 셋이 모두 «정상»으로 보인다:
+
+| 보이는 것 | 그런데 |
+|---|---|
+| 봇이 멀쩡히 뜬다 · 훅도 통과 | 세션은 방 글을 **한 줄도 못 받는다** |
+| `/mcp` 가 **connected** | MCP 는 진짜 붙었다. 막힌 것은 채널 등록이다 |
+| 방의 봇 칩에 **"입력 중…"** 이 뜬다 | 채널이 push **전에** `working` 을 먼저 보내기 때문이다. 일하는 게 아니다 |
+| 사람이 봇 창에서 시키면 `reply` 로 방에 글을 올린다 | **나가는 길만** 성한 것이다 |
+
+오류는 어디에도 안 남는다. 2026-09-14 에 이 자리에서 하루를 썼다
+(`../../meta/prodev-review/runs/2026-09-14-channels-blocked.md` — 채널 코드는 격리 시험으로 무죄가 확인됐다).
+
+**막혔는지 보는 법** (봇을 띄우기 전에 확인한다):
+
+| 무엇 | 어디 | 막혔다는 뜻 |
+|---|---|---|
+| 계정 종류 | `~/.claude.json` 의 `organizationType` | `claude_enterprise` · `claude_team` 이면 해당 |
+| 켜졌나 | `~/.claude/remote-settings.json` 의 `channelsEnabled` | **키가 없거나 `true` 가 아니면 막힘** |
+
+**로컬에서 못 고친다.** 관리 설정은 개인 설정으로 못 덮는다. 조직 관리자가 managed settings 에
+`channelsEnabled: true` 를 넣어야 하고(원하면 `allowedChannelPlugins` 로 플러그인을 골라 허용),
+그 뒤 기동 명령에 `--channels minidiscord-channel` 을 **더** 준다.
+
+**켜지기 전에도 반쪽은 쓸 수 있다.** 사람이 봇 창에서 직접 시키면 `reply` · `fetch_history` 로
+방과 주고받는 것은 전부 된다. 막힌 것은 «방 글에 스스로 깨어나는 것» 하나다. 5절의 끝 조건은
+이 벽이 뚫리기 전에는 **통과할 수 없다** — 통과한 척하지 않는다.
 
 ## 5. 확인 (T3.1 끝 조건)
 
@@ -284,6 +320,7 @@ sqlite3 <DATA_DIR>/minidiscord.db "SELECT name, token FROM bots;"
 | python: `statsmodels` (분석) | `python3 -c "import statsmodels"` | 회귀 · 분산분석 · DOE 배치가 안 된다 |
 | **Claude Code** | `claude --version` | 봇을 못 띄운다 |
 | minidiscord 채널 플러그인 빌드 | `ls minidiscord/channel/dist/index.js` | `cd minidiscord && npm install && npm run build -w channel` |
+| **조직의 `channelsEnabled`** | `~/.claude/remote-settings.json` 에 `"channelsEnabled": true` 가 있나 (회사 계정일 때) | **봇이 방 글에 안 깨어난다 — 오류 없이.** 이 표에서 유일하게 **깔아서 해결되지 않는** 칸이다. 관리자에게 요청해야 하고 날이 걸릴 수 있다. 4.1 을 볼 것 |
 
 **꾸러미는 사람이 미리 깐다. 봇에게 시키지 않는다.** 봇 허용 목록에 `pip` 가 없고(ADR-033), 윈도우는 `pip` 가 아니라 `py -m pip` 라 한 줄을 열어 줘도 안 맞을 수 있다. 그리고 무엇이 깔리는지는 사내 기계에서 사람이 알고 있어야 하는 일이다.
 
@@ -380,7 +417,7 @@ crontab -e                             # 그 두 줄을 붙인다
 | 7 | `node scripts/setup.js rooms <과제>` | 방 둘 · `rooms.json` |
 | 8 | (없어졌다 — `setup.js` 가 알림 토큰을 넣는다, ADR-024) | |
 | 9 | 봇을 켠다 (4절 그대로) | 세션에 스킬 열셋과 에이전트 여섯이 보인다 |
-| 10 | 본방에 `@TO(prodev-<과제>-bot) 안녕` | 봇이 그 방에 답한다 |
+| 10 | 본방에 `@TO(prodev-<과제>-bot) 안녕` | 봇이 그 방에 답한다. **"입력 중…"만 뜨고 세션이 무반응이면 4.1** — 회사 계정의 `channelsEnabled` 가 막은 것이고, 여기서 멈춘다. 뒤 칸을 통과한 척하지 않는다 |
 | 11 | 봇 세션에서 `/compact` 한 번 | 본방에 **글 둘**: "문맥을 정리 중입니다" → (압축) → "정리가 끝났습니다. 이어서 하려면 말을 걸어 주세요" |
 | 12 | cron 두 줄을 붙인다 (10.7) | 다음 날 08:00 브리핑 |
 
