@@ -24,7 +24,9 @@
 // 답한 층을 find.log 에 한 줄씩 남긴다 (읽힘 지표, ARCHITECTURE 5.3).
 // 칸: <when>\t<layer>\t<layer 이름>\t<n>\t<top>\t<q>. 번호 옆에 이름을 함께 적는 까닭은
 // 층이 밀릴 때 옛 로그의 "4" 와 새 로그의 "4" 가 다른 뜻이 되어 주간 계측이 조용히 어긋나기 때문이다.
-// 자리: PRODEV_FIND_LOG(시험·검수용 전체 경로) > <이 저장소>/bots/<PRODEV_BOT>/find.log. 둘 다 없으면 안 남긴다.
+// 자리: PRODEV_FIND_LOG(시험·검수용 전체 경로) > <PRODEV_BOT_DIR>/find.log > <이 저장소>/bots/<PRODEV_BOT>/find.log.
+// 셋 다 없으면 안 남긴다. PRODEV_BOT_DIR 은 조종석이 봇 세션에 넣는 봇 폴더다 — scripts/ 가 링크로 실린 자리(스크래치)에서도
+// 이 파일의 __dirname 이 아니라 그 봇 폴더에 남는다 (훅의 places.js botDir() 과 같은 순서).
 
 const fs = require('fs');
 const path = require('path');
@@ -268,8 +270,9 @@ function layerInbox(root, idx, ts) {
 
 function logLine(q, layer, hits) {
   const explicit = process.env.PRODEV_FIND_LOG;
+  const botDir = process.env.PRODEV_BOT_DIR;
   const bot = process.env.PRODEV_BOT;
-  const file = explicit || (bot ? path.join(REPO, 'bots', bot, 'find.log') : null);
+  const file = explicit || (botDir ? path.join(path.resolve(botDir), 'find.log') : bot ? path.join(REPO, 'bots', bot, 'find.log') : null);
   if (!file) return;
   try {
     fs.mkdirSync(path.dirname(file), { recursive: true });

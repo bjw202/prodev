@@ -96,14 +96,14 @@ DB 를 못 열거나 방을 몰라도 표식이 있으면 막는다 (카드 공�
 |---|---|---|
 | `PRODEV_PROJECT` | places.js · index.js · find.js · intake-copy.js | 없으면 과제 폴더를 모른다 (훅은 그 검사를 건너뛴다) |
 | `PRODEV_BOT` | places.js | 봇 폴더를 `<repo>/bots/<이름>` 으로 |
-| `PRODEV_BOT_DIR` | places.js | 있으면 이것이 이긴다 |
+| `PRODEV_BOT_DIR` | places.js · find.js | 있으면 이것이 이긴다 (조종석이 봇 세션에 봇 폴더로 넣는다) |
 | `PRODEV_HANDOFF` | places.js | 없으면 `<봇폴더>/handoff-compact.md` |
 | `PRODEV_NOTIFY_TOKEN` | pre-compact.js · session-start.js | `prodev-notify` 계정의 `md_session` 값. 조종석 판에서는 `setup.js` 가 받지 않는다 (ADR-038). 없거나 `MINIDISCORD_URL` 이 비면 알림 건너뜀 (ADR-018) |
 | `PRODEV_NOTIFY_ROOM` | pre-compact.js | 봉투의 `chat_id` 가 먼저 → env → `rooms.json` 의 본방. 셋 다 없으면 알림 건너뜀 |
 | `PRODEV_INTAKE_ROOTS` | intake-copy.js | 없으면 `MINIDISCORD_BOT_FILES_DIR`, 그것도 없으면 막지 않는다 |
 | `PRODEV_AUTOCOMPACT` | setup.js | 650000 |
 | `PRODEV_FAKE_CLAUDE` | pre-compact.js | 시험용. 요약을 부르지 않는다 |
-| `PRODEV_FIND_LOG` | find.js | 없으면 봇 폴더의 `find.log` |
+| `PRODEV_FIND_LOG` | find.js | 없으면 `<PRODEV_BOT_DIR>/find.log`, 그것도 없으면 `<repo>/bots/<PRODEV_BOT>/find.log` |
 | `MINIDISCORD_DB` | places.js · chat.js | 봇 설정에서는 조종석 `<dataDir>/chat.db` (ADR-038). 없으면 `<minidiscord>/server/data/minidiscord.db` |
 | `MINIDISCORD_URL` | pre-compact.js · session-start.js · replay.js · retro-cost.js | 봇 설정에서는 **빈 값** — 훅이 알림을 건너뛴다 (ADR-038). replay · retro-cost 는 없으면 `http://127.0.0.1:3000` |
 | `COCKPIT_CONFIG` | setup.js | 조종석 설정 파일. `--cockpit` 이 이기고, 둘 다 없으면 `<루트>/cockpit/cockpit.json` (ADR-038) |
