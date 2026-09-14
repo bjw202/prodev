@@ -205,6 +205,16 @@ test('명령 꼴 — analysis · research · intake 는 python 을 run.py 로, r
   assert.ok(r.includes('`curl` 은 쓰지 않는다'), 'reviewer 가 curl 을 막지 않는다');
 });
 
+// ── intake 확정 청하기 (확정 조건 ④ — T3M · W2r · M5.M 에서 세 번 막혔다) ─────
+
+test('intake — 카드 번호를 밝힌 뒤 확정을 청한다 (조건 ④ 는 직전 봇 글의 카드 번호를 본다)', () => {
+  const i = 스킬('intake');
+  const 문장 = i.indexOf('카드 번호를 밝힌 뒤 확정을 청한다');
+  assert.ok(문장 >= 0, '번호를 먼저 밝히라는 문장이 없다');
+  assert.ok(i.includes('같은 글'), '번호와 청하는 말을 한 글에 두라는 말이 없다');
+  assert.ok(i.indexOf('index.js next E') < 문장 + 200, '번호를 어디서 받는지 청하는 자리 곁에 없다');
+});
+
 // ── report · journal 고리 ─────────────────────────────────
 
 test('report — templates/ 를 넷의 순서로 보고, 둘 이상이면 사람이 고른다 (ADR-035)', () => {
