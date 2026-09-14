@@ -880,7 +880,7 @@ flowchart LR
 | **알림 계정** | 사람 계정 하나(`prodev-notify`). 훅이 "정리 중" 같은 글을 올릴 때 쓴다 | 채팅 서버 |
 | **훅 셋** | 비서가 켜질 때 · 압축 직전 · 말하기 직전에 끼어드는 기계 | `common/hooks/` |
 
-**cron 은 등장인물이 아니다.** `setup.js cron` 이 crontab 두 줄을 내주기는 하지만
+**cron 은 등장인물이 아니다.** `setup.js cron` 은 조종석 판에서 지웠다 (ADR-038) —
 **자동 브리핑을 두지 않기로 했다** (위 "비서의 하루"). 사람이 말을 걸 때 `brief` 와 `journal` 이 뜬다.
 
 ### 도우미 여섯
@@ -962,14 +962,14 @@ v3 이 더한 약속 넷이다. 앞의 여섯이 **값이 넘치지 않게** 하
 ## 돌리는 법
 
 ```bash
-node scripts/setup.js --project <과제이름>   # 과제 폴더 · 봇 폴더 · 설정을 만든다
-node scripts/setup.js rooms <과제이름>       # 방 둘을 열고 봇을 넣는다
-npm test                                     # 서버 없이 도는 시험 133건
-npm run test:server                          # 임시 채팅 서버를 띄우는 시험 25건
+node scripts/setup.js --project <과제이름> --cockpit <cockpit.json>   # 과제 폴더 · 봇 폴더 · 설정 두 장
+# 방 둘과 봇 등록은 조종석이 한다: cockpit 에서 node bin/cockpit.js open-project <과제이름> (ADR-038)
+npm test                                     # 서버 없이 도는 시험 140건
+npm run test:server                          # setup.js 를 저장소 사본에서 통째로 돌리는 시험 18건
 ```
 
 `--project` 에는 **이름만** 주면 된다. 폴더를 미리 만들 필요가 없다 —
-`MINIDISCORD_BOT_FILES_DIR` 아래에 폴더를 만들고 `git init` 까지 한다.
+조종석 설정(`cockpit.json`)의 `projectsDir` 아래에 폴더를 만들고 `git init` 까지 한다.
 파일 뿌리 밖에 두고 싶을 때만 경로를 준다.
 
 봇을 실제로 띄우는 순서(cwd · 옵션 조합 · 확인 방법)는 `docs/launch.md` 에 한 자리로 못 박혀 있다.

@@ -1,38 +1,4 @@
 {
-  "permissions": {
-    "allow": [
-      "mcp__minidiscord-channel__reply",
-      "mcp__minidiscord-channel__fetch_history",
-      "Read",
-      "Grep",
-      "Glob",
-      "Agent",
-      "WebSearch",
-      "WebFetch",
-      "Edit({{PROJECT}}/**)",
-      "Write({{PROJECT}}/**)",
-      "Edit({{BOT}}/**)",
-      "Write({{BOT}}/**)",
-      "Bash(node:*)",
-      "Bash(git:*)",
-      "Bash(gh:*)",
-      "Bash(python3:*)",
-      "Bash(mkdir:*)",
-      "Bash(ls:*)",
-      "Bash(date:*)",
-      "Bash(echo:*)",
-      "Bash(pwd)",
-      "Bash(cd:*)"
-    ],
-    "deny": [
-      "Edit({{BOT}}/.claude/settings.json)",
-      "Edit({{BOT}}/.env)",
-      "Edit({{BOT}}/.mcp.json)",
-      "Edit({{PRODEV}}/common/hooks/**)",
-      "Edit({{PRODEV}}/scripts/**)"
-    ],
-    "additionalDirectories": ["{{PROJECT_DIR}}", "{{UPLOADS_DIR}}", "{{PRODEV_DIR}}"]
-  },
   "env": {
     "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
     "PATH": "{{PATH}}",
@@ -40,7 +6,7 @@
     "PRODEV_BOT": "{{BOT_NAME}}",
     "PRODEV_PROJECT": "{{PROJECT_DIR}}",
     "MINIDISCORD_DB": "{{DB}}",
-    "MINIDISCORD_URL": "{{URL}}"
+    "MINIDISCORD_URL": ""
   },
   "statusLine": { "type": "command", "command": "{{STATUSLINE}}" },
   "autoCompactEnabled": true,
@@ -55,7 +21,7 @@
         "hooks": [ { "type": "command", "command": "node {{HOOKS}}/pre-compact.js", "timeout": 180 } ] }
     ],
     "PreToolUse": [
-      { "matcher": "mcp__minidiscord-channel__reply",
+      { "matcher": "mcp__cockpit__reply",
         "hooks": [ { "type": "command", "command": "node {{HOOKS}}/pre-reply.js" } ] }
     ]
   }

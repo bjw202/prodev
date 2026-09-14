@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__cockpit__reply",
+      "mcp__cockpit__fetch_history",
+      "Read",
+      "Grep",
+      "Glob",
+      "Agent",
+      "WebSearch",
+      "WebFetch",
+      "Edit({{PROJECT}}/**)",
+      "Write({{PROJECT}}/**)",
+      "Edit({{BOT}}/**)",
+      "Write({{BOT}}/**)",
+      "Bash(node:*)",
+      "Bash(git:*)",
+      "Bash(gh:*)",
+      "Bash(python3:*)",
+      "Bash(mkdir:*)",
+      "Bash(ls:*)",
+      "Bash(date:*)",
+      "Bash(echo:*)",
+      "Bash(pwd)",
+      "Bash(cd:*)"
+    ],
+    "deny": [
+      "Edit({{BOT}}/.claude/settings.json)",
+      "Edit({{BOT}}/.claude/settings.local.json)",
+      "Edit({{BOT}}/.env)",
+      "Edit({{PRODEV}}/common/hooks/**)",
+      "Edit({{PRODEV}}/scripts/**)"
+    ],
+    "additionalDirectories": ["{{PROJECT_DIR}}", "{{UPLOADS_DIR}}", "{{PRODEV_DIR}}"]
+  }
+}

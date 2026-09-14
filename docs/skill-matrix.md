@@ -28,7 +28,7 @@ ADR-030(갈래마다 깊이를 다르게)으로 같은 칸이 또 바뀌었다. 
 | 산출 | `charter.md` · `schedule.md` 뼈대 · 방 묶음(API) · git init | 같음 (걸음 3 · 4 · 5). 결재 전 일정에는 헌장의 마디에서 곧장 옮긴 줄만 (T3.M R1 1-5) | ✓ |
 | 관문 | PL 결재 | PL 결재. 결재 전 `status: draft` 유지 | ✓ |
 | 에이전트 | (없음) | 부르지 않는다 | ✓ |
-| 스크립트 | `setup.js rooms` | `setup.js rooms` · `git` | ✓ |
+| 스크립트 | `setup.js rooms` | `git` (방은 조종석이 과제를 열 때 만든다 — ADR-038) | ✓ |
 
 ### intake — 6/6 ✓
 
@@ -149,7 +149,7 @@ ADR-030(갈래마다 깊이를 다르게)으로 같은 칸이 또 바뀌었다. 
 | 산출 | `knowledge/projects/<과제>.md` | 같음 + `knowledge/domain/<topic>.md` (A-7) · `charter.md` 의 `## 마감` | ✓ |
 | 관문 | PL 결재 (승격) | 같음 (걸음 3) | ✓ |
 | 에이전트 | (없음) | 부르지 않는다 | ✓ |
-| 스크립트 | `setup.js archive` | `setup.js archive` · `git` | ✓ |
+| 스크립트 | `setup.js archive` | `git` (방 보관은 PL 에게 청한다. 조종석 몫 — ADR-038) | ✓ |
 
 **12행 × 6칸 = 72칸 전부 ✓.**
 

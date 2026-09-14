@@ -73,10 +73,10 @@ status: draft            draft | active | closed
 ### 5. 방을 연다 · git 을 연다
 
 ```
-node scripts/setup.js rooms <과제>     방 둘을 만들고 봇을 참여시킨다
 git init                                과제 저장소가 아직 git 이 아니면 (setup 이 이미 했으면 건너뛴다, ADR-023)
 ```
-방 둘은 본방 `prodev-<과제>` 와 `prodev-<과제>/files` 다 (ADR-022).
+방 둘은 본방 `prodev-<과제>` 와 `prodev-<과제>/files` 다 (ADR-022). **방은 조종석이 과제를 열 때 이미 만들었다** (ADR-038) — 봇이 방을 만들지 않는다.
+방이 하나라도 없으면 만들려 하지 말고 PL 에게 조종석에서 과제를 열어 달라고 청한다.
 사람에게 한 줄로 알린다: **"말은 아무 데서나, 파일은 files 에."**
 
 ### 6. PL 결재를 청한다
@@ -92,7 +92,7 @@ git init                                과제 저장소가 아직 git 이 아�
 
 ## 부르는 것
 
-`scripts/setup.js rooms` · `git`. 에이전트는 부르지 않는다.
+`git`. 에이전트는 부르지 않는다. (방은 조종석이 만든다 — ADR-038)
 
 ## 다시 불렸을 때
 

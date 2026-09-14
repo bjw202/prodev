@@ -390,3 +390,29 @@
 **예외 하나** **meta 의 계측은 기계여야 한다.** 손으로 센 숫자는 근거가 아니라는 규칙은 그대로다. 다만 그 계측 장치를 **봇 안에 넣지 않는다** — 밖에서 파일과 방 기록을 세면 된다. 봇은 md 만 갖는다.
 **재는 것** `retro` 의 넷째 보고에 판별을 통과하지 못한 제안이 섞이는가 (`VERIFICATION.md` 5.1 다섯째가 함께 본다).
 **결과** `.claude/skills/retro/SKILL.md` 의 판별 표 · `ARCHITECTURE.md` 10 · `design/README.md` 는 바뀌지 않는다.
+
+## ADR-038 봇은 조종석이 붙든다 — 설정은 두 장, 권한은 `settings.local.json` 에
+**상태** 확정 (사람 · meta, 2026-09-14)
+**맥락** minidiscord 채널 플러그인은 `--dangerously-load-development-channels` 로만 붙는데, 그 길이 막혔다. 그래서 실제 Claude Code 세션을 Agent SDK 로 감싼 웹 앱 하나 — **조종석(cockpit)** — 가 채팅 · 진행 열람 · 승인을 맡는다. 조종석은 minidiscord 의 표 여섯을 `chat.db` 에 이름 · 열 그대로 두고, 도구 둘을 `mcp__cockpit__reply` · `mcp__cockpit__fetch_history` 로 세션에 직접 준다 (cockpit `docs/ARCHITECTURE.md` 3 · 11절).
+
+그런데 조종석 스모크에서 **허용 목록이 먹지 않았다.** headless(SDK) 세션은 프로젝트 `.claude/settings.json` 의 `permissions.allow` 를 읽지 않는다 — `Write(**)` 를 넣어도 승인을 물었다. 같은 규칙을 `.claude/settings.local.json` 에 두면 먹었다. 훅 · env · statusLine · 자동 압축은 `settings.json` 에서도 먹었다 (meta 실측, 2026-09-14).
+**결정** 일곱이다.
+
+| | 전 (minidiscord) | 후 (조종석) |
+|---|---|---|
+| ① 설정 파일 | `settings.json` 한 장 | `settings.json`(훅 · env · statusLine · 자동 압축) + `settings.local.json`(`permissions` 하나뿐) |
+| ② 도구 이름 | `mcp__minidiscord-channel__*` | `mcp__cockpit__*` (틀 · 훅 matcher · 허용 목록 · 시험) |
+| ③ 창구 배선 | `.mcp.json` · `.env`(봇 토큰 · 알림 토큰) · `MINIDISCORD_URL` | 없음. `MINIDISCORD_URL` 은 **빈 값** — 훅 알림은 건너뛰고, 압축 알림은 조종석이 system 글로 올린다 |
+| ④ 대화 DB · 업로드 | minidiscord 의 DB · 서버 업로드 폴더 | `MINIDISCORD_DB` = 조종석 `<dataDir>/chat.db` · `{{UPLOADS_DIR}}` = 조종석 `uploadsDir` · deny 에 `<dataDir>/cockpit.db` 의 `Read` · `Edit` · `Write` |
+| ⑤ 방 | `setup.js rooms` · `archive` · `cron` | 조종석 `open-project` · 웹 과제 열기(`POST /api/projects`)가 만든다. `rooms` · `archive` 는 안내하고 exit 1, `cron` 은 지운다 |
+| ⑥ 기동 | 봇 폴더에서 `claude --mcp-config … --dangerously-load-development-channels …` | 조종석 `serve` 가 세션을 붙든다 (`docs/launch.md` 4절) |
+| ⑦ 지침 | `CLAUDE.md` 17행 "minidiscord 방 둘" | "cockpit 방 둘" — 낱말 하나. 비서 지침 열한 줄은 그대로 |
+
+**왜 두 장인가** 한 장으로 합칠 길은 둘이었다. 전부 `settings.local.json` 으로 옮기거나, 전부 `settings.json` 에 두고 조종석이 SDK 옵션으로 권한을 넘기거나. 앞의 것은 훅 배선까지 "로컬 · 사람 손" 이라는 뜻의 파일로 가서, 무엇이 설계이고 무엇이 이 기계의 것인지가 흐려진다. 뒤의 것은 허용 목록의 **진실이 prodev 밖(조종석 코드)** 으로 나가 ADR-033 의 판별 시험이 재는 자리가 사라진다. 그래서 **먹지 않는 것 하나만 옮긴다** — 권한은 local, 나머지는 그대로. 둘 다 `setup.js` 가 한 번에 쓰므로 사람에게는 여전히 한 걸음이다.
+**틀도 둘로 가른다** `common/settings.template.json` 은 권한을 뺀 나머지, `common/settings.local.template.json` 은 정확히 `{ "permissions": { … } }` 하나다. 자리표시자 이름(`{{PROJECT}}` · `{{BOT}}` · `{{PRODEV}}` · `{{PROJECT_DIR}}` · `{{UPLOADS_DIR}}` · `{{PRODEV_DIR}}`)은 바꾸지 않는다 — 조종석 스모크가 같은 이름으로 사본을 채운다. `settings.json` 에 권한을 **남겨 두지 않는다**: 남기면 "있는데 안 먹는" 목록이 생기고, 사람이 그쪽을 고치고 왜 안 되는지 헤맨다.
+**setup 은 조종석 자리를 설정 한 장에서 읽는다** `--cockpit <cockpit.json>` > `COCKPIT_CONFIG` > `<루트>/cockpit/cockpit.json`. 그 파일의 `dataDir` 에서 `chat.db` · `cockpit.db` 를, `uploadsDir` 에서 업로드 폴더를, `projectsDir` 에서 과제 뿌리(ADR-023 의 "이름만" 자리)를 푼다. 환경변수 셋을 따로 받는 길도 있었으나, 조종석이 이미 쓰는 값을 사람이 한 번 더 적게 되고 **두 곳에 적은 값은 언젠가 갈린다** (알림 경로에서 이미 두 번 겪었다, ADR-018). 파일이 없으면 까닭과 고치는 법을 대고 죽는다 — 엉뚱한 자리에 만들지 않는다.
+**deny 는 셋이 달라졌다** ① `Edit(<봇>/.mcp.json)` 을 빼고 `Edit(<봇>/.claude/settings.local.json)` 을 넣었다. 허용 목록이 사는 파일을 봇이 고치면 제 권한을 스스로 늘린다. ② 업로드 폴더 쓰기 둘은 자리만 조종석 `uploadsDir` 로 옮겼다(과제 폴더를 덮으면 넣지 않는 규칙은 그대로, ADR-019). ③ `cockpit.db` 셋. **이 deny 는 벽이 아니다** — `Bash(node:*)` 로 도는 스크립트는 파일을 열 수 있다. 그래서 조종석은 그 파일에 해시만 둔다 (cockpit ARCHITECTURE 3.3). `chat.db` 는 막지 않는다 — `chat.js` 가 읽는 대화 원본이다. 합쳐 deny 10건.
+**`rooms` · `archive` 를 지우지 않고 안내로 남기는 까닭** 옛 문서와 손버릇이 그 명령을 부른다. 없는 명령으로 죽으면 "왜" 가 안 보이고, 0 으로 끝나면 방이 생긴 줄 안다. 그래서 무엇이 대신하는지 한 줄을 대고 1 로 끝낸다. `cron` 은 자동 브리핑을 두지 않기로 했으므로(ADR-036) 대신할 것이 없어 그냥 지운다. 스킬 둘(`charter` 5걸음 · `close` 4걸음)이 부르던 자리도 "방은 조종석이 만든다 · 보관은 PL 에게 청한다" 로 바꿨다.
+**남는 위험** ① `setup.js` 를 다시 돌리면 `settings.local.json` 을 통째로 덮는다. 사람이 손으로 더한 규칙이 있으면 사라진다 — 규칙은 틀에 더한다. ② 옛 봇 폴더의 `.env` · `.mcp.json` 은 지우지 않고 "남음" 이라고만 말한다 (사람의 파일을 지우지 않는다). 훅은 `.env` 의 알림 토큰을 여전히 읽을 수 있지만 `MINIDISCORD_URL` 이 비어 보내지 않는다 — 시험 한 칸이 이것을 못 박는다. ③ `rooms.json` 을 쓰는 곳이 없어져, `places.js` 의 "DB 를 못 열면 rooms.json" 뒷길은 조종석 판에서 늘 비어 있다. DB 를 못 열면 카드 공지 · 발송은 지금처럼 fail-closed 로 막힌다 (ADR-022).
+**재는 것** 단위 시험 — 두 장의 가름(권한은 local 에만) · 틀의 꼴 · 허용 22건과 deny 10건이 **local** 에 있음 · `mcp__cockpit__` 이름 · `MINIDISCORD_DB` = `chat.db` · 빈 `MINIDISCORD_URL` 이면 알림 0건. 서버 시험 — `setup.js` 를 사본에서 통째로 돌려 실제 두 장 · `.env` / `.mcp.json` / `rooms.json` 없음 · `rooms` / `archive` 안내와 exit 1 · 조종석 설정 없음에 까닭. **headless 세션에서 승인 창이 실제로 안 뜨는지는 조종석 W2 재측정이 잰다** — 이 저장소 시험은 세션을 띄우지 않는다.
+**결과** `common/settings.template.json` · `common/settings.local.template.json`(새) · `common/hooks/pre-reply.js`(주석) · `scripts/setup.js` · `test/setup.test.js` · `test/hooks.test.js` · `test/server/setup.test.js` · `.claude/skills/charter/SKILL.md` · `.claude/skills/close/SKILL.md` · `CLAUDE.md` 17행 · `docs/launch.md` 0 · 3 · 4절 · `docs/as-built.md` · `docs/skill-matrix.md` · `README.md`.

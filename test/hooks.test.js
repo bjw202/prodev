@@ -289,7 +289,7 @@ for (const c of CASES.cases) {
   const 말 = c.want === 0 ? '통과(0)' : '막음(2)';
   test(`pre-reply — ${c.name} → ${말}`, () => {
     const r = hook('pre-reply.js',
-      { hook_event_name: 'PreToolUse', tool_name: 'mcp__minidiscord-channel__reply', tool_input: c.input },
+      { hook_event_name: 'PreToolUse', tool_name: 'mcp__cockpit__reply', tool_input: c.input },
       { MINIDISCORD_DB: DB, PRODEV_PROJECT: PROJECT });
 
     assert.strictEqual(r.code, c.want, `stderr: ${r.stderr.trim()}`);
@@ -406,6 +406,16 @@ test('pre-compact 알림 — 쿠키 md_session + multipart 로 보낸다. Bearer
   assert.ok(!q.ctype.includes('application/json'), 'JSON 으로 보낸다');
   assert.match(q.body, /name="body"/, 'body 칸이 없다');
   assert.match(q.body, /정리 중/, '무슨 말인지 안 적혀 있다');
+});
+
+test('pre-compact 알림 — MINIDISCORD_URL 이 빈 값이면 토큰이 있어도 안 보내고 exit 0 (조종석 봇 설정, ADR-038)', async () => {
+  // 조종석 판의 봇 설정은 env 에 MINIDISCORD_URL 을 빈 값으로 둔다. 압축 알림은 조종석이 system 글로 올린다.
+  // 토큰이 봇 폴더 .env 에 남아 있어도(minidiscord 시절 파일) 어디로도 보내지 않아야 한다.
+  const S = await 받아적는서버();
+  const r = await 압축훅({ MINIDISCORD_URL: '', PRODEV_NOTIFY_TOKEN: 진짜꼴토큰 });
+  S.srv.close();
+  assert.strictEqual(r.code, 0);
+  assert.strictEqual(S.받은것.length, 0, 'URL 이 비었는데 보냈다');
 });
 
 test('pre-compact 알림 — 토큰이 없으면 아무것도 안 보내고 그대로 exit 0', async () => {

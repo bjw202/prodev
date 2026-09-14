@@ -5,17 +5,20 @@
 
 바탕값은 2026-09-10 에 시험 서버(포트 3123 · 빈 DB)로 **직접 확인한 것**이다. 확인 못 한 자리는 그렇게 적었다.
 
+> **2026-09-14 부터 봇은 조종석(cockpit)이 붙든다 (ADR-038).** 지금 길은 **3절(설정)과 4절(조종석에서 과제 열기)** 이다.
+> 1 · 2 · 6 · 7 · 10 절은 minidiscord 채널 플러그인 시절의 기록이라 그대로 두었다 — 서버 · 봇 토큰 · 알림 계정 · cron 걸음은 조종석 판에 없다.
+
 ---
 
 ## 0. 한눈에
 
 ```
-① 시험 서버 (다른 포트 · 빈 DB · 봇 첨부 뿌리)      사람
-② 계정 둘 (PL · 과제원)                             사람  ← 알림 계정은 setup 이 만든다
-③ 봇 등록 · 설정 · 방 둘        node scripts/setup.js          사람이 돌린다
-④ 봇 기동                       cd bots/<봇> && claude …        사람
-⑤ 확인                          본방에 @TO 하나                 사람
-⑥ 재생 토큰 (T3.2 용)           REPLAY_TOKEN_PL · _MEMBER      사람
+① 조종석 설정 · 계정            cockpit.json · init-admin · add-user   사람 (cockpit README)
+② 과제 폴더 · 봇 설정 두 장     node scripts/setup.js --cockpit …      사람이 돌린다
+③ 과제 열기 (봇 · 방 둘)        node bin/cockpit.js open-project …     사람 (또는 웹의 과제 열기)
+④ 서버                          node bin/cockpit.js serve              사람
+⑤ 확인                          본방에 @TO 하나                        사람
+⑥ 재생 토큰 (T3.2 용)           cockpit session-token <이름>           사람
 ```
 
 **대본만 돌릴 거면 이 여섯이 다 필요하지 않다.** 미니디스코드 없이 세션 대 세션으로 도는 판이 **11절**에 있다 (ADR-029). 걸음이 둘로 준다. 대신 못 재는 것이 셋 있고, 그것도 11절에 적어 두었다.
@@ -61,49 +64,54 @@ curl -sS -i -X POST http://127.0.0.1:3123/api/auth/login \
 # set-cookie: md_session=<이 값이 토큰이다>; Path=/; HttpOnly; SameSite=Lax
 ```
 
-## 3. 봇 등록 · 설정 · 방 둘
+## 3. 과제 폴더 · 봇 설정 두 장
 
 ```bash
 cd <루트>/prodev
-MINIDISCORD_URL=http://127.0.0.1:3123 \
-MINIDISCORD_DIR=<루트>/minidiscord \
-MINIDISCORD_DB=<시험자리>/data/minidiscord.db \
-MINIDISCORD_BOT_FILES_DIR=<과제 저장소들의 부모> \
-  node scripts/setup.js --project <과제이름>
-
-# 그다음 (같은 환경변수로)
-node scripts/setup.js rooms 시험
+node scripts/setup.js --project <과제이름> --cockpit <루트>/cockpit/cockpit.json
 ```
 
-`--project` 에는 **이름만** 주면 된다 (ADR-023). 그러면 `$MINIDISCORD_BOT_FILES_DIR/<이름>` 에 과제 폴더를 만들고 하위 열과 `git init` 까지 한다 — 폴더를 미리 만들 필요가 없다. 파일 뿌리 밖에 두고 싶으면 그때만 **경로**를 준다 (`/` 가 들어 있으면 경로로 본다). 있는 폴더에 다시 돌려도 안의 것은 건드리지 않는다.
+조종석 설정은 `--cockpit` > `COCKPIT_CONFIG` > `<루트>/cockpit/cockpit.json` 순서로 찾는다. **setup 은 그 한 장에서 자리 셋을 읽는다** (ADR-038):
 
-`setup.js` 가 만드는 것: 과제 폴더와 하위 열 · `git` · `bots/prodev-<과제>-bot/` 아래 `.env`(토큰) · `.claude/settings.json`(훅 셋 배선 · env 셋 · 허용 목록) · `.mcp.json` · `rooms.json`.
-방 둘은 `prodev-<과제>` (본방) 와 `prodev-<과제>/files` 다 (ADR-022).
-사람에게 한 줄로 알린다: **"말은 아무 데서나, 파일은 files 에."**
+| cockpit.json | 봇 설정에 들어가는 자리 |
+|---|---|
+| `dataDir` | `env.MINIDISCORD_DB` = `<dataDir>/chat.db` · deny 에 `<dataDir>/cockpit.db` 의 `Read` · `Edit` · `Write` |
+| `uploadsDir` | `additionalDirectories` 에 읽기로 열고, 쓰기는 deny |
+| `projectsDir` | `--project` 에 이름만 줬을 때 과제 폴더를 만드는 자리 (ADR-023) |
 
-확인할 것: 출력 ④ "명령 N/N 풀림" 에 못 찾은 명령이 없어야 한다. 있으면 그 명령을 쓰는 일이 통째로 막힌다.
+`--project` 에 **이름만** 주면 `<projectsDir>/<이름>` 에 과제 폴더를 만들고 하위 열과 `git init` 까지 한다. 파일 뿌리 밖에 두고 싶으면 그때만 **경로**를 준다 (`/` 가 들어 있으면 경로로 본다). 있는 폴더에 다시 돌려도 안의 것은 건드리지 않는다.
 
-## 4. 봇 기동 — cwd · 옵션 조합 (여기가 이 문서의 핵심)
+`setup.js` 가 만드는 것: 과제 폴더와 하위 열 · `git` · `bots/prodev-<과제>-bot/.claude/` 아래 **두 장**.
+
+| 파일 | 담는 것 | 왜 따로인가 |
+|---|---|---|
+| `settings.json` | 훅 셋 배선 · env(`MINIDISCORD_URL` 은 빈 값) · statusLine · 자동 압축 | headless 세션에서도 읽힌다 |
+| `settings.local.json` | 허용 22 · 거부 10 · `additionalDirectories` 셋 | headless(SDK) 세션은 `settings.json` 의 `permissions.allow` 를 **안 읽는다** (ADR-038) |
+
+**만들지 않는 것**: `.env`(봇 토큰 · 알림 토큰) · `.mcp.json` · `rooms.json`. 도구 `mcp__cockpit__reply` · `mcp__cockpit__fetch_history` 는 조종석이 세션에 직접 준다. `setup.js rooms` · `archive` 는 조종석으로 안내만 하고 1 로 끝나고, `cron` 은 지웠다.
+
+확인할 것: 출력 ③ "명령 N/N 풀림" 에 못 찾은 명령이 없어야 한다. 있으면 그 명령을 쓰는 일이 통째로 막힌다.
+
+## 4. 조종석에서 과제 열기
 
 ```bash
-cd <루트>/prodev/bots/prodev-<과제>-bot        # ← cwd 는 봇 폴더다
-claude \
-  --setting-sources project,local \
-  --strict-mcp-config \
-  --mcp-config .mcp.json \
-  --dangerously-load-development-channels server:minidiscord-channel
+cd <루트>/cockpit
+node bin/cockpit.js open-project <과제> --bot-name <봇>     # 봇 한 줄 · 방 둘 · 세션 한 줄
+node bin/cockpit.js serve                                   # 서버. 세션을 켜고 브라우저로 들어온다
 ```
+
+웹으로도 된다 — admin 이 **과제 열기** 양식(`POST /api/projects`)에 과제 이름과 봇 이름을 넣는다. 둘은 같은 일을 한다.
 
 | 조각 | 왜 이래야 하나 |
 |---|---|
-| **cwd = 봇 폴더** | `.claude/settings.json` 과 `.mcp.json` 이 여기 있다. 훅·허용 목록·env 셋이 전부 이 설정에서 온다 |
-| `--setting-sources project,local` | user 범위(`~/.claude.json`)를 읽지 않는다. 사람 PC 의 설정이 봇에 새지 않는다. **그래서 PATH 를 settings 의 `env` 에 박는다** (`setup.js` 가 한다) |
-| `--strict-mcp-config` + `--mcp-config .mcp.json` | 이 파일에 적힌 MCP 서버 하나만 붙인다 |
-| `--dangerously-load-development-channels server:minidiscord-channel` | 채널 플러그인을 개발 빌드로 붙인다 |
-| `--settings` 는 **쓰지 않는다** | cwd 의 `.claude/settings.json` 이 이미 project 범위로 읽힌다. `--settings` 로 또 주면 어느 쪽이 이겼는지 나중에 못 가린다 |
+| `<과제>` = `setup.js` 의 과제 이름 | 방 둘이 `prodev-<과제>` · `prodev-<과제>/files` 로 생긴다 (ADR-022). 봇 폴더 기본은 `<botsDir>/prodev-<과제>-bot` — setup 이 만든 자리와 같다 |
+| `--bot-name <봇>` | 봉투(`@TO(…)`)와 화면 기본값이 쓰는 이름. 주지 않으면 `prodev-<과제>-bot`. 옛 대본은 `prodev-worktogether-비서` 꼴이라 그 이름으로 연다 |
+| `--bot-dir <봇 폴더>` | 조종석 `botsDir` 이 이 저장소의 `bots/` 가 아닐 때만. setup 이 출력 ④ 에 그 경로를 적어 준다 |
+| 세션 cwd = 봇 폴더 | 조종석이 SDK 세션을 봇 폴더에서 띄운다. 두 장의 설정이 여기서 읽히고 `PRODEV_BOT_DIR` 도 조종석이 넣는다 |
+| `claude` 를 손으로 띄우지 **않는다** | `--mcp-config` · `--dangerously-load-development-channels` 조합은 조종석 판에 없다. 세션은 `serve` 가 붙든다 |
 
 스킬·에이전트는 **prodev 저장소 뿌리**(`bots/<봇>/` 의 두 단계 위)의 `.claude/skills` · `.claude/agents` 에 있다.
-`CLAUDE.md` 도 거기 있다. 기동 뒤 세션에서 스킬 열셋이 보이는지 확인한다.
+`CLAUDE.md` 도 거기 있다. 기동 뒤 조종석 판의 세션 머리에서 스킬 열다섯과 에이전트 여섯이 보이는지 확인한다.
 
 ## 5. 확인 (T3.1 끝 조건)
 
@@ -173,8 +181,9 @@ PRODEV_NOTIFY_TOKEN=<알림 계정의 md_session 값>
 `curl: (26) Failed to open/read local data` 로 죽는다. 멘션은 언제나 `@TO(` 로 시작한다.
 그래서 `--form-string` 을 쓴다. `--form-string` 은 `@` 도 `<` 도 해석하지 않는다.
 
-시험이 이 자리를 지킨다 (`test/server/setup.test.js`): cron 두 줄에 `--form-string` 이 있고
-`-F` 와 `Bearer` 가 없음을 보고, **낸 줄을 그대로 서버에 쏴 200 과 남은 글**을 확인한다.
+시험이 이 자리를 지켰다 (`test/server/setup.test.js`): cron 두 줄에 `--form-string` 이 있고
+`-F` 와 `Bearer` 가 없음을 보고, **낸 줄을 그대로 서버에 쏴 200 과 남은 글**을 확인했다.
+**조종석 판(ADR-038)에서 `setup.js cron` 과 그 시험 둘을 지웠다.** 훅 알림의 꼴은 `test/hooks.test.js` 가 그대로 본다.
 
 ---
 
