@@ -77,6 +77,9 @@ files 방에 카드 공지 한 줄 (`[카드] R-0003 · … · cards/R-0003.md`)
 
 `researcher` (조사) · `reviewer` (검토) · `scripts/find.js` · `scripts/index.js`
 
+**명령 꼴.** python 은 `run.py` 파일에 쓰고 `python3 run.py` 로 돌린다. 히어독 · `-c` 인라인 · `for` 반복문 · 세미콜론 묶음은 쓰지 않는다(승인 카드가 뜬다).
+`run.py` 는 과제 폴더의 `tmp/` 에 둔다. 원문은 `curl` 이 아니라 `WebFetch` 로 연다.
+
 ## 다시 불렸을 때
 
 `research/<주제>.md` 가 있으면 읽는다. 사람이 더 알아봐 달라 하면 **새 물음만** 적어 허락을 받고,

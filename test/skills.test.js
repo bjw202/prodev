@@ -193,6 +193,18 @@ test('retro — 봇은 제안까지고 만드는 것은 사람이다. 대화 DB 
   assert.ok(/cron 은 없다/.test(r), 'cron 이 없다는 것을 말하지 않는다 — 사람이 부르는 스킬이다');
 });
 
+// ── 명령 꼴 (조종석 W2r — 승인 카드 31건이 전부 Bash 묶음이었다) ─────
+
+test('명령 꼴 — analysis · research · intake 는 python 을 run.py 로, reviewer 는 WebFetch 로', () => {
+  const 문장 = 'python 은 `run.py` 파일에 쓰고 `python3 run.py` 로 돌린다. 히어독 · `-c` 인라인 · `for` 반복문 · 세미콜론 묶음은 쓰지 않는다(승인 카드가 뜬다).';
+  for (const 이름 of ['analysis', 'research', 'intake']) {
+    assert.ok(스킬(이름).includes(문장), `${이름}: 명령 꼴 문장이 없다`);
+  }
+  const r = 읽는다(path.join('.claude', 'agents', 'reviewer.md'));
+  assert.match(/^tools: (.+)$/m.exec(r)[1], /\bWebFetch\b/, 'reviewer 도구에 WebFetch 가 없다');
+  assert.ok(r.includes('`curl` 은 쓰지 않는다'), 'reviewer 가 curl 을 막지 않는다');
+});
+
 // ── report · journal 고리 ─────────────────────────────────
 
 test('report — templates/ 를 넷의 순서로 보고, 둘 이상이면 사람이 고른다 (ADR-035)', () => {

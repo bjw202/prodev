@@ -87,6 +87,23 @@ test('find — void 카드는 대체한 카드로 바뀌어 나오고, 폐기된
   assert.strictEqual(R.answers.get('샤워헤드초판').hits[0].via, 'E-0006');
 });
 
+test('find — find.log 자리는 PRODEV_FIND_LOG > PRODEV_BOT_DIR > <저장소>/bots/<PRODEV_BOT>', () => {
+  // 조종석은 봇 세션에 PRODEV_BOT_DIR(봇 폴더)을 넣는다. scripts/ 가 링크로 실린 스크래치에서도 그 봇 폴더에 남아야 한다
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'prodev-findlog-'));
+  const botDir = path.join(dir, 'bots', 'prodev-시험-bot');
+  const explicit = path.join(dir, 'explicit.log');
+  const ask = extra => execFileSync(process.execPath, [FIND, '없는말', '--json'], {
+    encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    env: { ...process.env, PRODEV_FIND_LOG: '', PRODEV_BOT_DIR: '', PRODEV_BOT: '', MINIDISCORD_DB: CHAT_DB, PRODEV_PROJECT: R.dir, ...extra },
+  });
+  ask({ PRODEV_BOT_DIR: botDir, PRODEV_BOT: '__이_이름의_폴더는_안_생겨야_한다' });
+  assert.ok(fs.existsSync(path.join(botDir, 'find.log')), 'PRODEV_BOT_DIR 의 find.log 가 없다');
+  assert.ok(!fs.existsSync(path.join(ROOT, 'bots', '__이_이름의_폴더는_안_생겨야_한다')), 'PRODEV_BOT 자리로 샜다');
+  ask({ PRODEV_FIND_LOG: explicit, PRODEV_BOT_DIR: botDir });
+  assert.ok(fs.existsSync(explicit), 'PRODEV_FIND_LOG 가 이기지 않는다');
+  assert.strictEqual(fs.readFileSync(path.join(botDir, 'find.log'), 'utf8').split('\n').filter(Boolean).length, 1);
+});
+
 test('find — find.log 에 물음마다 한 줄, 모두 18줄', () => {
   const lines = fs.readFileSync(R.log, 'utf8').split('\n').filter(Boolean);
   assert.strictEqual(lines.length, 18);
