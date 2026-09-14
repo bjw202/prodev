@@ -205,6 +205,16 @@ test('명령 꼴 — analysis · research · intake 는 python 을 run.py 로, r
   assert.ok(r.includes('`curl` 은 쓰지 않는다'), 'reviewer 가 curl 을 막지 않는다');
 });
 
+// ── intake 확정 청하기 (확정 조건 ④ — T3M · W2r · M5.M 에서 세 번 막혔다) ─────
+
+test('intake — 카드 번호를 밝힌 뒤 확정을 청한다 (조건 ④ 는 직전 봇 글의 카드 번호를 본다)', () => {
+  const i = 스킬('intake');
+  const 문장 = i.indexOf('카드 번호를 밝힌 뒤 확정을 청한다');
+  assert.ok(문장 >= 0, '번호를 먼저 밝히라는 문장이 없다');
+  assert.ok(i.includes('같은 글'), '번호와 청하는 말을 한 글에 두라는 말이 없다');
+  assert.ok(i.indexOf('index.js next E') < 문장 + 200, '번호를 어디서 받는지 청하는 자리 곁에 없다');
+});
+
 // ── report · journal 고리 ─────────────────────────────────
 
 test('report — templates/ 를 넷의 순서로 보고, 둘 이상이면 사람이 고른다 (ADR-035)', () => {
@@ -223,6 +233,14 @@ test('journal — 되풀이된 말 절이 있고, 세지 않는다고 못 박는
   assert.ok(j.includes('세지 않는다'), '세지 않는다는 말이 없다');
   assert.ok(j.includes('retro'), '누가 읽는지 안 적혔다');
   assert.ok(j.includes('지어내지 않는다'), '없을 때 채우지 말라는 말이 없다');
+});
+
+test('journal — 방 하나 판에서도 계측이 읽는 두 절을 남긴다 (ADR-021 · ADR-039)', () => {
+  const j = 스킬('journal');
+  for (const 절 of ['## 방마다 마지막 글', '## 카드 없는 첨부']) {
+    assert.ok(j.includes(절), `일지 골격에 절이 없다: ${절}`);
+  }
+  assert.ok(j.includes('방이 하나여도 두 절은 남긴다'), '방 하나일 때 절을 빼지 말라는 말이 없다');
 });
 
 // ── CLAUDE.md (ADR-035) ───────────────────────────────────
