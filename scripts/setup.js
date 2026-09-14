@@ -28,6 +28,28 @@ const AUTOCOMPACT = Number(process.env.PRODEV_AUTOCOMPACT || 650000);
 const CLAUDE_ARGS = ['--setting-sources', 'project,local', '--strict-mcp-config', '--mcp-config', '.mcp.json',
   '--dangerously-load-development-channels', 'server:minidiscord-channel'];
 
+// ── 준 경로가 실재하는가 ─────────────────────────────────────────────────
+// 2026-09-14: 사람이 README 의 자리표시자(`C:\…\crew-workspace`)를 안 채운 채 붙여넣었다.
+// 윈도우에서 `…` 는 멀쩡한 폴더 이름이라 PowerShell 도 mkdir 도 안 걸렸고, setup 은 받은 값을
+// 그대로 `.mcp.json` 과 settings 에 적었다. 밖에서 보인 것은 봇 세션의 한 줄뿐이다 —
+// `Failed to reconnect to minidiscord-channel: CONNECTION_CLOSED`. 경로 얘기는 어디에도 없다.
+// (채널이 뜨자마자 `Cannot find module` 로 죽으면 Claude Code 에는 «끊겼다» 로만 보인다.)
+//
+// 이 저장소가 **오류 없이 고장 나는 경로 결함**을 밟은 것은 이번이 셋째다 (WINDOWS.md 5.1 의 ① 과 ⑦).
+// 앞의 둘은 고친 뒤 "다음엔 알아채겠지" 로 뒀다. 알아채지 못했다. 그래서 로그가 아니라 **멈춘다.**
+const 자리표시자 = /…|PATH[\\/]TO/;
+function 실재해야한다(이름, 값, 무엇) {
+  if (!값) return;                                  // 안 준 것은 기본값이 받는다 — 그쪽은 언제나 맞다
+  if (자리표시자.test(값)) {
+    throw new Error(`${이름} 에 자리표시자가 그대로 있다: ${값}\n` +
+      `  문서의 C:\\PATH\\TO\\crew-workspace 는 **네 경로로 바꿔 넣는 자리**다. 바꿔서 다시 돌려라.`);
+  }
+  if (!fs.existsSync(값)) {
+    throw new Error(`${이름} 이 가리키는 ${무엇}가 없다: ${값}\n` +
+      `  오타거나 · 옮겼거나 · 자리표시자를 안 채운 것이다. 이대로 두면 봇은 떠도 채널이 안 붙는다.`);
+  }
+}
+
 // 과제 하나 = 방 둘. 본방은 접미어가 없고 나머지 하나가 <접두어>/files 다 (ARCHITECTURE 2절 · ADR-022).
 // 이름은 places.js 한 자리에서 온다 — 훅(pre-reply)의 확정 조건 ② 와 같은 값이어야 한다.
 const { 갈래들: 갈래 } = require('../common/hooks/places.js');
@@ -334,6 +356,10 @@ async function 알림토큰받기() {
 // ── 설치 ──────────────────────────────────────────────────
 
 async function install(opt) {
+  // 값이 틀렸으면 **아무것도 쓰기 전에** 멈춘다. 반쯤 쓰인 설정이 가장 고약하다 —
+  // 봇이 뜨는 바람에 사람이 "됐다" 고 여긴다.
+  실재해야한다('MINIDISCORD_DIR', process.env.MINIDISCORD_DIR, '폴더');
+  실재해야한다('MINIDISCORD_BOT_FILES_DIR', process.env.MINIDISCORD_BOT_FILES_DIR, '폴더');
   const 과제폴더 = projectDir(opt);
   const 과제 = 과제이름(과제폴더);
   const 봇 = 봇이름(과제);
@@ -344,9 +370,15 @@ async function install(opt) {
 
   console.log(`저장소: ${PRODEV}\n과제:   ${과제} (${과제폴더})\n봇:     ${봇}\nminidiscord: ${MINIDISCORD} (${URL_})\n`);
 
+  // DB 는 **없어도 된다** — 창구 없이 하네스만 시험할 때는 일부러 없는 경로를 준다
+  // (README «시험할 때는 창구 없이 돌린다»). 그러나 자리표시자는 어느 쪽에서도 틀린 값이다.
+  if (자리표시자.test(DB)) 실재해야한다('MINIDISCORD_DB', DB, '파일');
+  if (자리표시자.test(과제폴더)) 실재해야한다('--project (또는 PRODEV_PROJECT)', 과제폴더, '폴더');
+
   console.log('① 폴더');
   과제폴더세우기(과제폴더);
   ensureDir(봇폴더, '토큰 · 설정 · 자기 상태');
+  if (!fs.existsSync(DB)) log(`없음  ${DB}  (훅의 «사람 글인가» 확인이 꺼진다. 창구 없이 시험할 때는 이것이 정상)`);
   if (!fs.existsSync(CHANNEL)) log(`없음  ${CHANNEL}  ← minidiscord 에서 npm install && npm run build -w channel`);
 
   console.log('\n② 봇 등록 (서버가 떠 있을 때만)');
@@ -388,6 +420,13 @@ async function install(opt) {
   if (!fs.existsSync(path.join(봇폴더, '.env'))) writeEnv(path.join(봇폴더, '.env'), { MINIDISCORD_TOKEN: '' });
   const token = readEnv(path.join(봇폴더, '.env')).MINIDISCORD_TOKEN;
   if (token) {
+    // 여기서만 멈춘다 — 채널이 없으면 **쓸 수 있는 `.mcp.json` 이 아니다.** 토큰이 없어 건너뛰는
+    // 길(시험 · 서버 꺼짐)에서는 채널을 안 보므로, 채널을 안 지은 저장소에서도 시험은 돈다.
+    if (!fs.existsSync(CHANNEL)) {
+      throw new Error(`채널이 없어 .mcp.json 을 쓸 수 없다: ${CHANNEL}\n` +
+        `  minidiscord 에서 npm install && npm run build -w channel 을 먼저 돌려라.\n` +
+        `  이대로 쓰면 봇은 뜨지만 채널만 CONNECTION_CLOSED 로 끊긴다 (2026-09-14).`);
+    }
     fs.writeFileSync(path.join(봇폴더, '.mcp.json'), JSON.stringify({
       mcpServers: { 'minidiscord-channel': { command: 'node', args: [CHANNEL], env: { MINIDISCORD_TOKEN: token, MINIDISCORD_SERVER: WS } } },
     }, null, 2) + '\n');
