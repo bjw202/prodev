@@ -53,10 +53,10 @@ function roomName(chatId) {
   return null;
 }
 
-// 과제 하나가 쓰는 방은 둘뿐이다 (ADR-022): 본방(접미어 없음)과 <과제>/files.
-// 갈래 이름을 여기 한 자리에 둔다 — setup.js(방 만들기)와 pre-reply.js(확정 조건 ②)가 같이 쓴다.
-const 갈래들 = ['files'];
-const 파일방 = 'files';
+// 과제 하나가 쓰는 방은 하나다 (ADR-039 — ADR-022 의 두 방 판을 대체). v2 가 새로 만드는 방에는 갈래(첫 '/' 뒤)가 없다.
+// 이관된 옛 <과제>/files 갈래 이름의 방을 풀려고 갈래 이름과 roomParts 는 남긴다. 확정 조건 ② 는 더 이상 갈래를 보지 않는다.
+const 갈래들 = ['files'];   // 옛 방의 갈래 — 새로 만들지 않는다
+const 파일방 = 'files';     // 옛 files 갈래 이름 (ADR-039 뒤로 pre-reply 가 쓰지 않는다)
 
 // "prodev-시험/files" → { 과제: "prodev-시험", 갈래: "files" }. 본방은 갈래가 null.
 function roomParts(name) {

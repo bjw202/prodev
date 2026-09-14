@@ -1,5 +1,5 @@
 {
-  "설명": "pre-reply.js 시험. 각 input 은 PreToolUse stdin 의 tool_input(reply). DB 는 fixtures/hooks/fixture.db (MINIDISCORD_DB 로), 과제 저장소는 fixtures/hooks/project (PRODEV_PROJECT 로). want 는 exit code. 막을 때는 stderr 에 이유 한 줄. 방아쇠는 방이 아니라 **봉투를 벗긴 첫 줄의 표식**이다 (ADR-022): `[카드] <번호> · <제목> · <경로>` 는 확정 다섯 조건을, `[발송]` 은 결재를 부른다. 결재 검사의 표식은 본문의 '결재 #<id>' 이고 그 글의 작성자가 charter.md 의 PL 과 같아야 한다.",
+  "설명": "pre-reply.js 시험. 각 input 은 PreToolUse stdin 의 tool_input(reply). DB 는 fixtures/hooks/fixture.db (MINIDISCORD_DB 로), 과제 저장소는 fixtures/hooks/project (PRODEV_PROJECT 로). want 는 exit code. 막을 때는 stderr 에 이유 한 줄. 방아쇠는 방이 아니라 **봉투를 벗긴 첫 줄의 표식**이다 (ADR-022): `[카드] <번호> · <제목> · <경로>` 는 확정 다섯 조건을, `[발송]` 은 결재를 부른다. 결재 검사의 표식은 본문의 '결재 #<id>' 이고 그 글의 작성자가 charter.md 의 PL 과 같아야 한다. (2026-09-15 ADR-039) 확정 조건 ② 는 같은 과제의 방이다 — 갈래를 보지 않는다. 조건 ② 를 어기는 판(다른 과제의 방)은 hooks.test.js 의 ADR-039 시험 둘이 fixture DB 사본으로 잰다.",
   "방": {
     "1": "prodev-시험 (본방)",
     "2": "prodev-시험/files"
@@ -30,7 +30,7 @@
       "want": 0
     },
     {
-      "name": "카드 공지 정상 E-0001 (files 방)",
+      "name": "카드 공지 정상 E-0001 (옛 files 갈래 이름의 방 — ADR-039 뒤에도 같은 과제의 방)",
       "input": {
         "chat_id": "2",
         "text": "[카드] E-0001 · 훅 시험 · cards/E-0001.md"
@@ -70,7 +70,7 @@
       "want": 2
     },
     {
-      "name": "카드 공지 확정 글이 files 방이 아님 E-0006",
+      "name": "카드 공지 E-0006 — 확정 글 #10 이 본방이라 조건 ② 는 통과, 그 방의 직전 봇 글에 카드 번호가 없어 ④ 에서 막힌다 (ADR-039)",
       "input": {
         "chat_id": "2",
         "text": "[카드] E-0006 · 훅 시험 · cards/E-0006.md"

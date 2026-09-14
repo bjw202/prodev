@@ -359,7 +359,7 @@ async function install(opt) {
 // 방은 조종석이 만든다 (open-project · POST /api/projects). 옛 걸음을 밟은 사람이 조용히 지나치지 않게
 // 무엇이 대신하는지 말하고 1 로 끝낸다 — 방이 안 생겼는데 0 으로 끝나면 생긴 줄 안다.
 const 옮겨감 = {
-  rooms: '방 둘은 조종석이 과제를 열 때 만든다: cd <cockpit> && node bin/cockpit.js open-project <과제> (또는 웹의 과제 열기)',
+  rooms: '방은 조종석에서 방을 만들 때 봇 · 과제 폴더와 함께 생긴다 (ADR-039): 웹의 새 방 · POST /api/rooms · cd <cockpit> && node bin/cockpit.js open-project <과제>',
   archive: '방 보관은 조종석으로 옮겨 갔다. setup.js 는 방을 만지지 않는다',
 };
 
