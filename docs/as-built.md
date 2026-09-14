@@ -15,7 +15,7 @@ prodev/
   design/v3/    이 판의 설계 문서 다섯 (PRD · ARCHITECTURE · ADR · TASKS · VERIFICATION)
   scripts/      부품 열 (아래 2절)
   common/hooks/ 훅 셋 + places.js
-  common/       settings.template.json · statusline.sh
+  common/       settings.template.json · settings.local.template.json · statusline.sh
   .claude/agents/   서브에이전트 여섯
   .claude/skills/   스킬 열다섯 (도메인 열넷 + 오케스트레이터)
   test/         단위 시험 열한 파일 + fixtures/
@@ -36,7 +36,7 @@ prodev/
 | `peek.js` | 파일 겉을 본다 | 파일 → 행 수 · 열 이름 · 앞 5행 · 형식 | intake |
 | `intake-copy.js` | 첨부를 inbox 로 들인다 | slug + 파일들 → inbox 폴더 · `.v2` · SHA-256 · `files.md` · 원본 0444. 서버 저장명이면 uuid 앞머리를 벗겨 원래 이름으로 | intake |
 | `plot.py` | csv 한 열을 그림으로 | csv + 열 → `<과제>/tmp/*.png` (없으면 한 줄 내고 exit 0) | intake |
-| `setup.js` | 과제 폴더 · 설치 · 방 · cron · 보관 | (아래 5절) | 사람 |
+| `setup.js` | 과제 폴더 · 봇 설정 두 장 | (아래 5절) | 사람 |
 | `retro-cost.js` | 세션 기록에서 값·승인 수 | 기록 → 숫자, `--record` | meta |
 | `replay.js` | 사람 역할을 API 로 재생 | 대본 JSON + 기록 JSONL 경로 → 기록 · exit 0/1 | meta (검수) |
 
@@ -46,7 +46,7 @@ prodev/
 |---|---|---|---|
 | `session-start.js` | SessionStart (startup·resume·clear·compact) | `design/v3/ARCHITECTURE.md` 6.4 의 파일들을 그 순서대로 `additionalContext` 로 — **여덟 절**이고 여덟째가 `house.md`(상한 50줄, ADR-032). **없음·못 읽음·잘림을 말로 가른다**. `house.md` 가 잘리면 봇에게 "첫 답에 사람에게 말하고 스스로 줄이지 마라"고 시킨다. `compact` 일 때만 방에 "정리가 끝났습니다" 한 줄 | fail-open (exit 0) |
 | `pre-compact.js` | PreCompact | 기록 꼬리 → `claude -p` 요약 → `handoff-compact.md`, **본방**에 "정리 중" (알림 계정. 방은 `chat_id` → env → `rooms.json` 의 본방) | fail-open. 못 썼으면 "못 썼다"를 파일에 적는다 |
-| `pre-reply.js` | PreToolUse `mcp__minidiscord-channel__reply` | 다섯을 차례로 본다 (아래) | 막을 때 **exit 2 + stderr 한 줄**. 통과는 exit 0 무언 |
+| `pre-reply.js` | PreToolUse `mcp__cockpit__reply` | 다섯을 차례로 본다 (아래) | 막을 때 **exit 2 + stderr 한 줄**. 통과는 exit 0 무언 |
 | `places.js` | (모듈) | 봇 폴더 · 과제 폴더 · DB · 방 이름을 env 로 찾는다. **알림 한 자리**(`알릴방` · `알림토큰` · `알린다`) — 훅 둘이 같이 쓴다 | 모르면 `null` — 부르는 쪽이 정한다 |
 
 `pre-reply.js` 가 보는 차례 (앞이 걸리면 뒤는 안 본다):
@@ -74,15 +74,20 @@ DB 를 못 열거나 방을 몰라도 표식이 있으면 막는다 (카드 공�
 
 | 명령 | 만드는 것 |
 |---|---|
-| `setup.js [--project <이름\|폴더>]` | **과제 폴더 자체**(없으면 만든다) · 하위 **열둘**(`analysis/` · `templates/` 를 더했다) · `house.md` 골격 · `.gitignore`(`tmp/` 한 줄) · `git init` · 봇 폴더 · `.env`(봇 토큰 + **알림 계정 세션 쿠키**, ADR-024) · `.claude/settings.json` · `.mcp.json`(토큰 있을 때만). 이름만 주면 `$MINIDISCORD_BOT_FILES_DIR/<이름>` (ADR-023) |
-| `setup.js rooms <과제>` | 방 둘(본방 · `<과제>/files`) + 봇 참여 + `rooms.json` |
-| `setup.js cron` | crontab 두 줄을 stdout 으로 (쿠키 + `--form-string`, ADR-018) |
-| `setup.js archive <방>` | 방 하나 보관 |
+| `setup.js [--project <이름\|폴더>] [--cockpit <cockpit.json>]` | **과제 폴더 자체**(없으면 만든다) · 하위 **열둘**(`analysis/` · `templates/` 를 더했다) · `house.md` 골격 · `.gitignore`(`tmp/` 한 줄) · `git init` · 봇 폴더 · `.claude/settings.json` · `.claude/settings.local.json`. 이름만 주면 `<조종석 projectsDir>/<이름>` (ADR-023 · 038). 조종석 설정은 `--cockpit` > `COCKPIT_CONFIG` > `<루트>/cockpit/cockpit.json` |
+| `setup.js rooms` · `archive` | 만들지 않는다. 조종석(`open-project` · 웹 과제 열기)으로 안내하고 exit 1 (ADR-038) |
+
+`.env` · `.mcp.json` · `rooms.json` 은 만들지 않는다. `cron` 명령은 없다 (ADR-038).
 
 만들어지는 `settings.json`:
-- `env` 일곱: `CLAUDE_CODE_DISABLE_AUTO_MEMORY` · `PATH`(변수 참조 없는 실제 폴더만) · **`CLAUDE_CODE_GIT_BASH_PATH`**(ADR-033. 기본 `C:\Program Files\Git\bin\bash.exe`, 같은 이름의 환경변수로 덮는다. 맥에서도 키가 있고 값이 비지 않는다) · `PRODEV_BOT` · `PRODEV_PROJECT` · `MINIDISCORD_DB` · `MINIDISCORD_URL`
-- `permissions.allow` **22건**(Bash 항목 열. 41건에서 셸 도구 스물하나를 뺐고 `Grep`·`Glob` 을 이름으로 넣었다 — ADR-033) · `deny` 틀 5건 + 서버 업로드 폴더 2건(과제 폴더를 덮지 않을 때만, ADR-019) · `additionalDirectories` 3
-- `hooks` 셋 배선 · `statusLine` · `autoCompactEnabled` · `autoCompactWindow`
+- `env` 일곱: `CLAUDE_CODE_DISABLE_AUTO_MEMORY` · `PATH`(변수 참조 없는 실제 폴더만) · **`CLAUDE_CODE_GIT_BASH_PATH`**(ADR-033. 기본 `C:\Program Files\Git\bin\bash.exe`, 같은 이름의 환경변수로 덮는다. 맥에서도 키가 있고 값이 비지 않는다) · `PRODEV_BOT` · `PRODEV_PROJECT` · `MINIDISCORD_DB`(= 조종석 `<dataDir>/chat.db`) · `MINIDISCORD_URL`(**빈 값** — 훅 알림은 건너뛴다)
+- `hooks` 셋 배선(PreToolUse matcher `mcp__cockpit__reply`) · `statusLine` · `autoCompactEnabled` · `autoCompactWindow`
+- **`permissions` 는 없다** — headless 세션은 여기 allow 를 안 읽는다 (ADR-038)
+
+만들어지는 `settings.local.json` (`{ "permissions": … }` 하나뿐):
+- `allow` **22건**(`mcp__cockpit__reply` · `mcp__cockpit__fetch_history` · Bash 항목 열. 41건에서 셸 도구 스물하나를 뺐고 `Grep`·`Glob` 을 이름으로 넣었다 — ADR-033)
+- `deny` 틀 5건(`settings.json` · `settings.local.json` · `.env` · 훅 · 스크립트) + 조종석 업로드 폴더 쓰기 2건(과제 폴더를 덮지 않을 때만, ADR-019) + `cockpit.db` 의 `Read` · `Edit` · `Write` 3건 = **10건**
+- `additionalDirectories` 3 (과제 · 조종석 업로드 · prodev)
 - **deny 가 과제 폴더를 덮으면 설치가 예외로 죽는다** (ADR-019)
 
 ## 6. 환경 변수 전부
@@ -93,44 +98,42 @@ DB 를 못 열거나 방을 몰라도 표식이 있으면 막는다 (카드 공�
 | `PRODEV_BOT` | places.js | 봇 폴더를 `<repo>/bots/<이름>` 으로 |
 | `PRODEV_BOT_DIR` | places.js | 있으면 이것이 이긴다 |
 | `PRODEV_HANDOFF` | places.js | 없으면 `<봇폴더>/handoff-compact.md` |
-| `PRODEV_NOTIFY_TOKEN` | pre-compact.js · session-start.js · cron 두 줄 | `prodev-notify` 계정의 `md_session` 값. **`setup.js` 가 받아 봇 폴더 `.env` 에 쓴다** (ADR-024). 없으면 알림 건너뜀 (ADR-018) |
+| `PRODEV_NOTIFY_TOKEN` | pre-compact.js · session-start.js | `prodev-notify` 계정의 `md_session` 값. 조종석 판에서는 `setup.js` 가 받지 않는다 (ADR-038). 없거나 `MINIDISCORD_URL` 이 비면 알림 건너뜀 (ADR-018) |
 | `PRODEV_NOTIFY_ROOM` | pre-compact.js | 봉투의 `chat_id` 가 먼저 → env → `rooms.json` 의 본방. 셋 다 없으면 알림 건너뜀 |
 | `PRODEV_INTAKE_ROOTS` | intake-copy.js | 없으면 `MINIDISCORD_BOT_FILES_DIR`, 그것도 없으면 막지 않는다 |
 | `PRODEV_AUTOCOMPACT` | setup.js | 650000 |
 | `PRODEV_FAKE_CLAUDE` | pre-compact.js | 시험용. 요약을 부르지 않는다 |
 | `PRODEV_FIND_LOG` | find.js | 없으면 봇 폴더의 `find.log` |
-| `MINIDISCORD_DB` | places.js · chat.js | 없으면 `<minidiscord>/server/data/minidiscord.db` |
-| `MINIDISCORD_URL` | setup.js · pre-compact.js | `http://127.0.0.1:3000` |
-| `MINIDISCORD_DIR` | setup.js · 시험 | 없으면 저장소의 형제 `minidiscord` |
-| `MINIDISCORD_BOT_FILES_DIR` | setup.js · intake-copy.js | 봇 첨부 뿌리 = **과제 저장소들의 부모**. `--project` 에 이름만 줬을 때 과제 폴더를 만드는 자리다 (ADR-023) |
-| `MINIDISCORD_USER` | setup.js · retro-cost.js | `prodev-setup` · `observer` |
-| `MINIDISCORD_SERVER` | setup.js (.mcp.json 에 박는다) | `ws://<URL>/bot` |
+| `MINIDISCORD_DB` | places.js · chat.js | 봇 설정에서는 조종석 `<dataDir>/chat.db` (ADR-038). 없으면 `<minidiscord>/server/data/minidiscord.db` |
+| `MINIDISCORD_URL` | pre-compact.js · session-start.js · replay.js · retro-cost.js | 봇 설정에서는 **빈 값** — 훅이 알림을 건너뛴다 (ADR-038). replay · retro-cost 는 없으면 `http://127.0.0.1:3000` |
+| `COCKPIT_CONFIG` | setup.js | 조종석 설정 파일. `--cockpit` 이 이기고, 둘 다 없으면 `<루트>/cockpit/cockpit.json` (ADR-038) |
+| `MINIDISCORD_BOT_FILES_DIR` | intake-copy.js | 봇 첨부 뿌리 = **과제 저장소들의 부모**. setup.js 는 더 읽지 않는다 — 조종석 `projectsDir` 를 쓴다 (ADR-038) |
+| `MINIDISCORD_USER` | retro-cost.js | `observer` |
 | `REPLAY_TOKEN_PL` · `REPLAY_TOKEN_MEMBER` | replay.js | 없으면 **시작 전에 exit 1** |
 
 ## 7. 시험 묶음
 
-`npm test` — 서버가 필요 없다. **133건 · 0 실패.**
+`npm test` — 서버가 필요 없다. **140건 · 0 실패.**
 
 | 파일 | 건수 | 무엇을 |
 |---|---|---|
 | `chat.test.js` | 10 | fixture DB 하나로 여섯 명령 |
 | `count.test.js` | 4 | 세는 법 하나 |
 | `find.test.js` | 20 | 층 여섯 · 조사 떼기 · void 따라가기 · 절 단위 매칭의 거짓 양성 |
-| `hooks.test.js` | 41 | session-start 5 + **house.md 3**(여덟째 자리 · 50줄 잘림과 사람에게 말하기 · 딱 50줄 경계) + 압축 직후 알림 2 · pre-compact 5 + 알림 7 · pre-reply 19 (표식 사례 17 + fail-closed 2) |
+| `hooks.test.js` | 42 | session-start 5 + **house.md 3**(여덟째 자리 · 50줄 잘림과 사람에게 말하기 · 딱 50줄 경계) + 압축 직후 알림 2 · pre-compact 5 + 알림 8(URL 빈 값이면 안 보냄, ADR-038) · pre-reply 19 (표식 사례 17 + fail-closed 2) |
 | `index.test.js` | 8 | 머리말 부분집합 · `next` · errors |
 | `intake.test.js` | 9 | 뿌리 밖 거절 · `.v2` · 0444 · 서버 저장명의 uuid 벗기기 셋 |
 | `peek.test.js` | 5 | csv · xlsx · pdf · jpg · 모르는 형식 |
 | `plot.test.js` | 2 | 그림 하나 · 안 죽는다 |
-| `setup.test.js` | 10 | 과제 폴더의 자리 넷 · `.gitignore` 한 줄 · `house.md` 골격 · 다시 돌려도 안 덮음 · Git Bash 키 · 허용 목록 22건(뺀 스물하나 · 내장 셋 · 남긴 열) · deny (ADR-032 · 033) |
+| `setup.test.js` | 16 | 과제 폴더의 자리 넷 · `.gitignore` 한 줄 · `house.md` 골격 · 다시 돌려도 안 덮음 · Git Bash 키 · **두 장의 가름 · 틀의 꼴 · `mcp__cockpit__` 이름** · 허용 목록 22건(뺀 스물하나 · 내장 셋 · 남긴 열) · deny 10(cockpit.db 셋) · chat.db 와 업로드 자리 · cockpit.json 읽기 둘 (ADR-032 · 033 · 038) |
 | `skills.test.js` | 22 | 스킬 열다섯이 제자리 · 머리말 · 분기표 순서(굳는 길 · analysis>find · retro>brief) · 트리거가 안 겹치나 · analysis 여섯 칸과 카드 필수와 관문 하나 · retro 근거와 판별 넷과 제안 셋 · report 의 templates 순서 · journal 의 되풀이 절 · CLAUDE.md 굳는 길 한 줄과 40줄 (ADR-034~037) |
 | `smoke.test.js` | 2 | 부품·fixture 가 제자리 |
 
-`npm run test:server` — 진짜 minidiscord 를 임시로 띄운다. **25건 · 0 실패** (setup 17 · replay 8).
-실제로 쓰인 `settings.json` 에서 허용 22건과 `CLAUDE_CODE_GIT_BASH_PATH` 도 여기서 한 번 더 본다 — 틀만 보면 `setup.js` 의 치환이 빠져도 안 걸린다.
-**저장소 사본에서 돌린다.** `MINIDISCORD_DIR` 하나만 주면 된다:
+`npm run test:server` — **18건 · 0 실패** (setup 10 · replay 8). 서버를 띄우지 않는다 (ADR-038 부터 setup 이 채팅 서버에 붙지 않는다). setup 시험은 임시 `cockpit.json` 을 만들어 `setup.js` 를 **자식 프로세스로 통째로** 돌린다.
+실제로 쓰인 두 장에서 허용 22건 · deny 10건 · `CLAUDE_CODE_GIT_BASH_PATH` · 빈 `MINIDISCORD_URL` 을 한 번 더 본다 — 틀만 보면 `setup.js` 의 치환이 빠져도 안 걸린다.
+**저장소 사본에서 돌린다** (시험이 스스로 `scripts/` · `common/` 만 옮긴 사본을 만든다):
 ```
-git archive HEAD | tar -x -C <임시>/사본 && cp -r node_modules <임시>/사본/
-cd <임시>/사본 && MINIDISCORD_DIR=<실제 minidiscord> npm run test:server
+cd <prodev> && npm run test:server
 ```
 마지막 시험이 "시험은 실제 `bots/` 를 만지지 않는다 (시험 전후 목록이 같다)" 를 못 박는다.
 
@@ -161,7 +164,8 @@ cd <임시>/사본 && MINIDISCORD_DIR=<실제 minidiscord> npm run test:server
 | `rooms.json` 은 방 이름표. `last_seen_id` 를 믿지 않는다 | 재생 다섯에서 그 값이 끝까지 0 이었는데 놓친 글은 서버 재배달이 다 가져왔다. ADR-006 을 뒤집었다 | ADR-021 |
 | 과제 하나 = 방 둘. 확정·발송 관문의 방아쇠가 방에서 표식으로 | 재생 실측에서 갈래 방이 값을 못 했고, 방이 합쳐지면 방으로는 공지와 평범한 답을 가를 수 없다 | ADR-022 |
 | 확정 어휘를 봉투 벗긴 뒤에 본다 | 사람 글은 언제나 `@TO(…)` 로 시작한다. 안 벗기면 확정이 영영 안 된다 | ADR-008 보충 |
-| 봇 `settings.json` 의 env 에 `MINIDISCORD_URL` | 없으면 훅이 기본 3000 을 보고 알림을 조용히 건너뛴다 | — |
+| 봇 `settings.json` 의 env 에 `MINIDISCORD_URL` | 없으면 훅이 기본 3000 을 보고 알림을 조용히 건너뛴다. **조종석 판에서는 빈 값이다** (아래 줄) | — |
+| 봇은 조종석(cockpit)이 Agent SDK 세션으로 붙든다. 권한은 `settings.local.json` 한 장에, 도구 이름은 `mcp__cockpit__*`, `.mcp.json` · 토큰 · `setup.js rooms` · `cron` 없음 | headless 세션은 `settings.json` 의 `permissions.allow` 를 안 읽는다(meta 실측). 방 · 봇 등록은 조종석이 한다 | ADR-038 |
 | intake 가 서버 저장명의 uuid 를 벗긴다 | 안 벗기면 같은 파일이 이름만 다른 채 둘이 된다 (`.v2` 가 안 걸린다) | — |
 | 압축 알림의 방을 `rooms.json` 의 본방에서 찾는다 | PreCompact 입력에 `chat_id` 가 없고 `setup.js` 는 설치 때 방 번호를 모른다 (방은 나중에 만든다) | — |
 | 알림이 둘이다 (압축 직전 · 직후) | 압축 뒤에는 사람이 말을 걸어야 이어서 한다. 사람이 그 시점을 알아야 한다 | ADR-018 보충 |
@@ -169,7 +173,8 @@ cd <임시>/사본 && MINIDISCORD_DIR=<실제 minidiscord> npm run test:server
 ## 9. 아직 그대로인 것 (알고 두는 것)
 
 - `rooms.json` 의 `last_seen_id` 칸은 `setup.js` 가 0 으로 쓰고 아무도 갱신하지 않는다. 읽는 코드도 없다 (ADR-021).
-- cron 두 줄은 `setup.js cron` 이 내기만 한다. crontab 에 붙이는 것은 사람이 한다 (`docs/launch.md` 8절).
+- `setup.js cron` 은 지웠다 (ADR-038). 자동 브리핑은 두지 않는다.
+- `rooms.json` 을 쓰는 곳이 없어졌다 (ADR-038). `places.js` 는 DB 를 못 열 때 여전히 그것을 찾지만, 조종석 판에서는 없으므로 `chat.db` 가 유일한 방 이름표다.
 - `bots/` 는 git 제외다. 봇 토큰은 서버 `bots` 표에도 평문으로 있어 잃어도 거기서 꺼낼 수 있다.
 - `setup.js` 의 갈래 이름은 `common/hooks/places.js` 의 `갈래들` 한 자리에서 온다 (ADR-022). 훅의 확정 조건 ② 와 같은 값이어야 하기 때문이다.
 - `git init` 이 실패해도 설치는 이어 간다 (ADR-023). 못 했다는 한 줄만 남긴다 — 커밋은 나중 일이고, 여기서 멈추면 봇을 못 띄운다.
