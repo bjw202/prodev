@@ -150,7 +150,7 @@ flowchart LR
     SV --- CDB
     SV -->|"+ 로 방을 만들면 부른다"| SET
     SET -->|"과제 폴더 · 봇 폴더 · 설정 두 장"| REPO
-    SV -->|"SDK 로 켜 두고 @TO 글을 넣는다"| BOT
+    SV -->|"SDK 로 켜 두고 @TO · @CC 글을 넣는다"| BOT
     BOT -->|"reply · fetch_history"| SV
     BOT --- KIT
     SCRIPT -.->|"chat.js 가 읽기만"| CDB
@@ -160,13 +160,13 @@ flowchart LR
 ```
 
 읽는 법은 이렇다.
-사람은 **브라우저**로 조종석에 글을 쓰고, 조종석 서버가 봉투(`@TO`)가 붙은 글만 비서 세션에 넣어 준다. 비서는 도구 `reply` 로 답한다.
+사람은 **브라우저**로 조종석에 글을 쓰고, 조종석 서버가 봉투(`@TO` · `@CC`)가 붙은 글만 비서 세션에 넣어 준다. `@TO` 글에는 도구 `reply` 로 답하고, `@CC` 글은 참고만 한다 (cockpit `src/envelope/wrap.js` 의 지시문).
 비서는 스킬을 보고 어떻게 할지 정하고, **과제 폴더**에 파일로 적는다. 비서의 기억은 머릿속이 아니라 **그 폴더**에 있다. 그래서 세션이 죽어도 잊지 않는다.
 
 조종석은 이 저장소 밖의 다른 저장소다 — 설치와 화면 쓰는 법은 [cockpit README](https://github.com/bjw202/cockpit/blob/main/README.md) 에 있다.
 이 README 는 **비서가 무엇을 하고 어떻게 기억하나**를 맡는다.
 
-과제 폴더에는 헌장(`charter.md`) · 일정(`schedule.md`) · 규칙(`house.md`, 50줄) · 원본(`inbox/`) · 카드(`cards/`) · 위키(`wiki/`) · 색인(`index.md`) · 분석(`analysis/`) · 양식(`templates/`) · 열린 실(`threads/`) · 일지(`journal/`)가 있다.
+과제 폴더에는 헌장(`charter.md`) · 일정(`schedule.md`) · 규칙(`house.md`, 50줄) · 원본(`inbox/`) · 카드(`cards/`) · 위키(`wiki/`) · 색인(`index.md`) · 분석(`analysis/`) · 양식(`templates/`) · 열린 실(`threads/`, 자리가 코드끼리 엇갈린다 — 워크플로우 ② 끝) · 일지(`journal/`)가 있다.
 이것들은 성격이 둘로 갈린다. 헌장 · 일정 · 카드 · 위키 · 일지는 **이 과제의 사실**이고,
 `house.md` · `templates/` · `analysis/methods/` 는 **이 사람과 일하는 방식**이다.
 앞의 것은 비서가 쌓고, **뒤의 것은 사람이 "앞으로" 라고 말했을 때만 는다.**
@@ -296,7 +296,7 @@ flowchart TB
 
 ```mermaid
 flowchart TB
-    IN["@TO 글이 왔다<br/>봉투 없는 글은 여기까지 오지 않는다"]
+    IN["@TO 글이 왔다<br/>봉투 없는 글은 오지 않고 @CC 글은 참고만 한다"]
     R1["1 · 따라잡기 — '위 파일 봐 줘'<br/>부른 글에 첨부가 없다<br/>→ fetch_history 로 끌어온다"]
     R2["2 · '앞으로' · '다음부터'<br/>→ 굳는 길"]
     R3["3 · 첨부 + 시키는 말 '채워 줘'<br/>→ report · paper · patent"]
@@ -355,15 +355,14 @@ sequenceDiagram
     end
     B->>R: reply — 읽은 표 · 물음 셋 이하 · "E-0007 로 만들겠습니다. 맞으면 확정"
     M->>R: 답하고 틀린 곳을 고쳐 준다
-    B->>P: threads/ 에 남은 물음을 적어 둔다
+    B->>B: 남은 물음을 threads/ 메모에 적어 둔다 (자리는 아래 엇갈림 참고)
     M->>R: @TO(prodev-과제-bot) 확정
     Note over B,R: pre-reply.js 훅이 chat.db 에서 확정 다섯 조건을 본다 (아래 ⑤)
     B->>P: 카드 valid · 위키 · index.js 색인 · git 커밋
     B->>R: reply — "[카드] E-0007 · CH-3B 수율 · cards/E-0007.md"
 ```
 
-읽는 법: 왼쪽 과제원에서 시작해 위에서 아래로 읽는다. 사람과 비서가 주고받는 글은 전부 가운데 **방 하나**를 거친다.
-파일을 봉투 없이 먼저 올려 두었다면, 나중에 `@TO(prodev-과제-bot) 위 파일 봐 줘` 로 부르면 된다 — 비서가 따라잡아 같은 흐름을 탄다.
+읽는 법: 왼쪽 과제원에서 시작해 위에서 아래로 읽는다. 사람과 비서가 주고받는 글은 전부 가운데 **방 하나**를 거친다. 파일을 봉투 없이 먼저 올려 두었다면, 나중에 `@TO(prodev-과제-bot) 위 파일 봐 줘` 로 부르면 된다 — 비서가 따라잡아 같은 흐름을 탄다.
 
 기억할 점 넷:
 
@@ -371,6 +370,8 @@ sequenceDiagram
 2. **한 번에 세 개까지만 묻는다.** 질문 폭격을 하지 않는다.
 3. **그림으로 물을 수 있으면 그림으로 묻는다.** 사진을 잘라 붙이거나 csv 를 그래프로 그려 올린다.
 4. **사람이 "확정"이라고 하기 전에는 카드 공지가 나가지 않는다.** 이건 부탁이 아니라 기계가 막는다.
+
+**열린 실(`threads/`)의 자리는 코드끼리 엇갈린다.** intake 스킬은 봇 폴더 `bots/<봇>/threads/` 에 적으라 하고(`.claude/skills/intake/SKILL.md:73`), 켤 때 훅은 과제 폴더 `threads/` 에서 읽는다(`common/hooks/session-start.js:105`, 이 폴더는 `scripts/setup.js:205` 가 과제 폴더에 만든다). 이 문서는 어느 쪽이 맞다고 정하지 않는다.
 
 ---
 
@@ -510,7 +511,7 @@ flowchart TB
 
 ```mermaid
 stateDiagram-v2
-    state "켜짐 — 조종석 켜기 · serve 가 resume" as ON
+    state "켜짐 — 조종석 켜기 · 서버를 다시 켜면 앞 대화를 이어 붙인다" as ON
     state "기억 되찾기 — session-start.js" as LOAD
     state "밀린 글 받기 — cockpit.db bot_inbox" as CATCH
     state "평소 일함" as WORK
@@ -520,18 +521,20 @@ stateDiagram-v2
 
     [*] --> ON
     ON --> LOAD: 훅이 파일 여덟 절을 순서대로 싣는다
-    LOAD --> CATCH: 꺼진 사이 쌓인 @TO 글을 조종석이 넣어 준다
+    LOAD --> CATCH: 꺼진 사이 쌓인 @TO · @CC 글을 조종석이 넣어 준다
     CATCH --> WORK: 첫 답은 "이어서 합니다" 한 줄
     WORK --> WORK: 평소 대화 · "위 파일 봐 줘" 면 따라잡기
     WORK --> COMPACT: 대화가 너무 길어졌다 · 조종석 압축 단추
-    COMPACT --> LOAD: handoff-compact.md 를 쓰고 compact 로 다시 싣는다
-    WORK --> CLOSE: 사람이 시킬 때 · 압축 직전
-    CLOSE --> OFF: journal/날짜.md 를 쓰고 커밋
+    COMPACT --> LOAD: pre-compact.js 가 handoff-compact.md 를 쓰고 · 압축 뒤 session-start.js 가 다시 싣는다
+    WORK --> CLOSE: 사람이 정리해 둬 라고 시킬 때만
+    CLOSE --> WORK: journal/날짜.md 를 쓰고 커밋 · 세션은 켜진 채
+    WORK --> OFF: 조종석 끄기
     OFF --> ON: 다음에 조종석에서 켤 때
 ```
 
 읽는 법: 가운데 **기억 되찾기**로 들어오는 화살표가 둘이다 — 새로 켜질 때와 압축된 뒤. 어느 쪽이든 앞 대화가 아니라 **파일**에서 되살아난다.
-꺼진 동안 사람이 보낸 `@TO` 글은 사라지지 않고 조종석의 큐(`bot_inbox`, 비서에게 갈 글을 줄 세워 두는 표)에 남았다가 켜지면 들어온다.
+꺼진 동안 사람이 보낸 `@TO` · `@CC` 글은 사라지지 않고 조종석의 큐(`bot_inbox`, 비서에게 갈 글을 줄 세워 두는 표)에 남았다가 켜지면 들어온다.
+**일지(journal)는 사람이 시킬 때만 쓴다.** 스킬 글(`journal/SKILL.md:10` · `prodev-orchestrator/SKILL.md:21`)에는 "압축 직전" 에도 쓴다고 적혀 있지만, 그때 journal 을 부르는 코드는 없다 — `pre-compact.js` 는 인수인계서를 쓸 뿐 journal 을 부르지 않고(`:5-9`), 조종석의 압축 단추는 `/compact` 명령만 넣는다(cockpit `src/session/manager.js:301`).
 
 켤 때 싣는 순서가 정해져 있다 (`common/hooks/session-start.js`, 여덟 절):
 **인수인계서 → 헌장 → 일정 → 열린 실 → 어제 일지 → 색인 앞 30줄 → 마지막 일지 날짜 → `house.md`.**
@@ -874,13 +877,12 @@ flowchart LR
     T3 --> T4["저녁<br/>사람이 말을 건다<br/>'정리해 둬'"]
     T4 --> T5["journal<br/>오늘의 결정 · 미해결<br/>다음 할 일 · 되풀이된 말"]
     T5 --> T6["git 커밋"]
-    T3 -.->|"압축이 걸리면"| T5
+    T3 -.->|"압축이 걸리면 pre-compact.js"| HO["handoff-compact.md<br/>인수인계서 · 일지와 다른 파일"]
 ```
 
 **정해진 시각에 저절로 돌지 않는다.** cron 도 작업 스케줄러도 쓰지 않는다 — 사람이 필요할 때 말을 건다.
 
-손실이 작다. `brief` 와 `journal` 은 **원래도 사람의 말로 불린다** ("오늘 뭐 있지" · "정리해 둬"). 정해진 시각이 하던 일은 그것을 대신 불러 주던 것뿐이다.
-오히려 나은 점이 있다 — **아침 브리핑은 사람이 자리에 없으면 방에 쌓이고 만다.** 사람이 말을 걸 때 나오면 반드시 읽힌다. 그리고 압축 직전에는 훅(`pre-compact.js`)이 인수인계서를 파일로 떨구므로 하던 일이 비지 않는다.
+손실이 작다. `brief` 와 `journal` 은 **원래도 사람의 말로 불린다** ("오늘 뭐 있지" · "정리해 둬"). 정해진 시각이 하던 일은 그것을 대신 불러 주던 것뿐이다. 오히려 나은 점이 있다 — **아침 브리핑은 사람이 자리에 없으면 방에 쌓이고 만다.** 사람이 말을 걸 때 나오면 반드시 읽힌다. 그리고 압축 직전에는 훅(`pre-compact.js`)이 인수인계서를 파일로 떨구므로 하던 일이 비지 않는다.
 
 ---
 
@@ -988,7 +990,7 @@ flowchart LR
 읽는 법: `setup.js` 는 폴더와 설정만 만들고 **방은 만들지 않는다.** 방과 봇 줄은 setup 이 성공한 뒤에 조종석이 넣는다. setup 이 실패하면 조종석이 그 요청으로 만든 것을 되돌린다.
 
 **`setup.js` 를 먼저 손으로 돌리지 않는다.** 그러면 봇 폴더가 이미 생겨서, 뒤이어 `+` 나 `open-project` 를 할 때 조종석이 "봇 폴더가 이미 있습니다" (409) 로 거절한다 (cockpit `src/rooms/create.js`).
-이미 돌려 버렸다면 조종석에서 `node bin/cockpit.js open-project <과제> --no-setup` 으로 방만 연다.
+이미 돌려 버렸다면 조종석에서 `node bin/cockpit.js open-project <과제> --no-setup` 을 친다. **setup 만 건너뛸 뿐**, 봇 줄 · 방 · 세션 줄(`cockpit.db agent_sessions`)은 그대로 만든다. 봇 폴더가 기본 자리 `<botsDir>/prodev-<과제>-bot` 이 아니면 `--bot-dir <봇 폴더>` 도 준다 (cockpit `src/rooms/create.js` · `bin/cockpit.js`).
 손으로 `setup.js` 를 다시 돌리는 것은 **있는 봇의 설정을 새로 쓸 때뿐**이다 — 이때 `settings.local.json` 을 통째로 덮으니, 손으로 더한 규칙은 틀(`common/settings.local.template.json`)에 넣는다 (ADR-038).
 `--project` 에는 **이름만** 주면 된다. 조종석 설정(`cockpit.json`)의 `projectsDir` 아래에 폴더를 만들고 `git init` 까지 한다. 시험은 이 저장소에서 돈다:
 
@@ -997,7 +999,7 @@ npm test               # 서버 없이 도는 시험 148건
 npm run test:server    # setup.js 를 저장소 사본에서 통째로 돌리는 시험 18건 (실제 bots/ 는 안 만진다)
 ```
 
-`docs/launch.md` 는 3절(설정)과 4절(조종석에서 과제 열기)이 지금 길이다. 나머지 절은 옛 채팅 서버 판의 기록이다.
+`docs/launch.md` 에는 옛 채팅 서버 판의 기록이 섞여 있다. 설치 · 방 만들기는 위 cockpit README 만 따른다.
 
 ## 있어야 하는 것
 
@@ -1068,16 +1070,14 @@ flowchart LR
 | **B · 길** | 그 자리로 가는 **길** — 굳는 길("앞으로" 만 굳고 "이번에는" 은 안 굳는다) · `analysis` 스킬(여섯 칸 + 카드 하나 · 관문은 모형 하나) · `retro` 스킬(근거 없는 항목은 안 쓴다) · 스킬을 만드는 기준인 판별 넷 | 034~037 |
 | **C · 짐** | 회사로 옮길 때 끊기는 **근거** — meta 의 판정 기록 여덟을 `docs/evidence/` 로 | (사본이라 ADR 없음) |
 
-**v1 과 v2 는 무엇이 달랐나** 검색 안정성 고침이었다 (ADR-026~030). 찾기 층에 과제 문서(헌장 · 일정)를 더해 여섯이 되었고, 카드 `## 결과` 절이 갈래마다 깊이를 다르게 싣게 되었고(과제가 쫓는 갈래는 개체까지, 나머지는 수와 실마리로), 대본 시험이 미니디스코드(옛 채팅 서버) 없이 세션 대 세션으로 바뀌었다.
-
-판을 어떻게 올리는지는 `design/README.md` 에 있다.
+**v1 과 v2 는 무엇이 달랐나** 검색 안정성 고침이었다 (ADR-026~030). 찾기 층에 과제 문서(헌장 · 일정)를 더해 여섯이 되었고, 카드 `## 결과` 절이 갈래마다 깊이를 다르게 싣게 되었고(과제가 쫓는 갈래는 개체까지, 나머지는 수와 실마리로), 대본 시험이 미니디스코드(옛 채팅 서버) 없이 세션 대 세션으로 바뀌었다. 판을 어떻게 올리는지는 `design/README.md` 에 있다.
 
 ### 기록 — `docs/` (판과 상관없이 계속 갱신한다)
 
 | 문서 | 무엇 | 언제 읽나 |
 |---|---|---|
 | `docs/as-built.md` | **지금 코드가 어떻게 생겼나.** 부품마다 한 줄 · 훅 · env 전부 · 시험 수 · 설계와 달라진 자리 | 고치기 전 |
-| `docs/launch.md` | **봇을 실제로 띄우는 법.** 서버 · 계정 · 설치 · cwd · 옵션 조합 | 띄울 때 |
+| `docs/launch.md` | 봇을 띄운 기록. **옛 채팅 서버 판의 걸음이 섞여 있다** — 지금 설치는 cockpit README | 옛 판을 알고 싶을 때 |
 | `docs/log.md` | **제작 일지.** 단계마다 한 일 · 커밋 범위 · 관문 결과 | 흐름을 알고 싶을 때 |
 | `docs/skill-matrix.md` | 스킬 열넷이 설계와 같은지 칸칸이 대조한 표 (84칸) | 스킬을 고칠 때 |
 | `docs/harness-input.md` | `/harness:harness` 에 무엇을 주었나 | 스킬·에이전트를 다시 낼 때 |
