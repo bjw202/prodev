@@ -2,8 +2,9 @@
 // index.js — 과제 폴더의 카드·위키·inbox 를 훑어 index.md 와 index.json 을 다시 쓴다.
 //
 //   node scripts/index.js [<과제폴더>]
+//   node scripts/index.js next <E|R|D|N>     다음 번호 한 줄(E-0002)만 낸다. 아무것도 쓰지 않는다.
 //
-// 과제 폴더: 인자 > PRODEV_PROJECT 환경변수 > 지금 폴더.
+// 과제 폴더: 인자 > PRODEV_PROJECT 환경변수 > 지금 폴더. `next` 는 인자가 없으니 PRODEV_PROJECT > 지금 폴더.
 // 손으로 쓰지 않는다. 카드나 위키가 바뀔 때마다 다시 돌린다 (ARCHITECTURE 5 의 "색인" 줄).
 //
 // 머리말은 YAML 부분집합만 읽는다. 라이브러리를 들이지 않는다 (TASKS T1.3):
@@ -225,7 +226,21 @@ function renderMd(idx) {
   return L.join('\n');
 }
 
+// 스킬이 카드를 쓰기 전에 번호를 받는 자리다 (intake · analysis · research · schedule).
+// 색인을 다시 쓰지 않으므로 errors 가 있어도 exit 0 이다 — 번호는 이름으로만 센다.
+function nextCommand(letter) {
+  if (!Object.prototype.hasOwnProperty.call(KINDS, letter)) {
+    process.stderr.write('쓰는 법: node scripts/index.js next <E|R|D|N>\n');
+    process.exit(1);
+  }
+  const root = path.resolve(process.env.PRODEV_PROJECT || process.cwd());
+  if (!fs.existsSync(root)) { process.stderr.write(`과제 폴더가 없다: ${root}\n`); process.exit(2); }
+  const { names } = readCards(root, []);
+  console.log(nextNumbers(names)[letter]);
+}
+
 function main() {
+  if (process.argv[2] === 'next') return nextCommand(process.argv[3]);
   const root = projectDir();
   if (!fs.existsSync(root)) { process.stderr.write(`과제 폴더가 없다: ${root}\n`); process.exit(2); }
 
