@@ -103,6 +103,24 @@ test('index — 위키 2 · inbox 사이드카를 싣는다', () => {
   assert.strictEqual(R.json.inbox[0].sidecar, 'inbox/20260825-yield-by-lot/files.md');
 });
 
+test('index — next E 하위 명령은 다음 번호 한 줄만 낸다 (과제 폴더는 PRODEV_PROJECT)', () => {
+  const run = (dir, args) => execFileSync(process.execPath, [INDEX, 'next', ...args], {
+    encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, PRODEV_PROJECT: dir },
+  });
+  const three = fs.mkdtempSync(path.join(os.tmpdir(), 'prodev-next-'));
+  fs.mkdirSync(path.join(three, 'cards'));
+  for (const n of ['E-0001', 'E-0002', 'E-0003']) {
+    fs.writeFileSync(path.join(three, 'cards', `${n}.md`), `---\nid: ${n}\nkind: experiment\ntitle: t\nstatus: confirmed\n---\n`);
+  }
+  assert.strictEqual(run(three, ['E']), 'E-0004\n');
+  const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'prodev-next-'));
+  assert.strictEqual(run(empty, ['E']), 'E-0001\n');
+  // 색인은 쓰지 않는다
+  assert.ok(!fs.existsSync(path.join(three, 'index.json')));
+  // 모르는 글자는 쓰는 법을 알리고 exit 1
+  assert.throws(() => run(empty, ['X']), e => e.status === 1 && /쓰는 법/.test(e.stderr));
+});
+
 test('index — 파서가 안 읽는 YAML 은 조용히 삼키지 않고 알린다', () => {
   assert.throws(() => parseFrontmatter('---\nid: E-1\ntags: [수율, 샤워헤드\n---\n'), /괄호가 안 닫혔다/);
   assert.throws(() => parseFrontmatter('---\nid: E-1\ntags:\n  - 수율\n---\n'), /들여쓴 줄은 읽지 않는다/);
